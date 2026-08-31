@@ -215,8 +215,41 @@ correto; o rótulo do painel do ADM é que estava errado, e foi alinhado.
 
 O isolamento continua sendo por clínica: o operador não alcança nenhuma outra.
 
+## Scan de código e dependências (GitGuard: Trivy + Semgrep)
+
+Terceira ferramenta, ângulo que a auditoria de banco não cobre. 18 findings,
+triados:
+
+**Corrigidos (reais):**
+- **XSS** no `document.write` da impressão de orçamento
+  (`CompanyPatientDetail`): nome do paciente, notas e itens iam para o HTML sem
+  escapar. Nome vindo do WhatsApp com `<script>` executaria no popup, que é
+  same-origin e alcança `window.opener`. Escapados os 7 campos. (Contava 4x no
+  Semgrep — era a mesma linha.)
+- **Senha gerada com `Math.random()`** (previsível) nos 3 geradores. Trocado
+  por `crypto.getRandomValues`.
+- **`ws` 8.20.0 → 8.21.3** (o HIGH de DoS). Não ia no bundle — browser usa
+  WebSocket nativo — mas fica para uso em Node. `@babel/core`, `postcss`,
+  `nanoid` atualizados; `react-router-dom` → 6.30.6.
+
+**Avaliados e aceitos (não exploráveis neste app):**
+- **esbuild**: falha só no dev-server (`npm run dev`), não no site publicado.
+  Corrigir exige subir o Vite de major.
+- **react-router — open-redirect via backslash**: todos os 28 `navigate()` e
+  todo `<Link to>` começam com prefixo fixo (`/adm`, `/painel`); as partes
+  dinâmicas são segmento/query depois do prefixo, nunca o host. Ninguém lê
+  `returnTo`/`next`/`redirect` de query. Não alcançável.
+- **react-router — Constructor Injection via SSR Hydration**: `deserializeErrors`
+  só roda em hidratação de SSR; este app é SPA pura, sem servidor. Caminho morto.
+- Os dois de react-router só somem com react-router-dom 7.x (breaking). Decisão
+  registrada: **não atualizar** um app no ar por CVE comprovadamente inalcançável.
+
 ## Também em aberto
 
+- **Auto-cadastro (`/auth/v1/signup`) aberto.** Exige confirmação de e-mail, então
+  não dá login sem confirmar — risco de dado baixo, mas é vetor de abuso e
+  superfície desnecessária (usuário se cria pelo ADM). Desligar no painel:
+  Authentication → Providers → Email → "Allow new users to sign up".
 - **Sem limite de tentativas de login.** Agora é o GoTrue quem recebe as
   tentativas, o que ajuda, mas vale configurar rate limit no painel do Supabase.
 - **`api_instancia` (credencial da Evolution) fica em `companies`.** Hoje só ADM
