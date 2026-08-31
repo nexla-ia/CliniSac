@@ -155,8 +155,72 @@ nada, e nem `admin` nem `viewer` mexem na conta ADM ou na mensalidade. Ciclo
 completo testado: ADM cria usuário → o usuário loga na hora → ADM apaga → a
 identidade some junto, sem órfão.
 
-### Etapa 3 — pendente
+### Etapa 3 — RLS por clínica (aplicada)
 
-Trocar as policies `using (true)` por `auth_can_access_company(company_id)`. É a
-que fecha a leitura livre de prontuário, agenda e financeiro, e a única que pode
-quebrar telas se alguma tabela passar despercebida.
+`20260831_auth_etapa3a_rls_dados.sql`, `…3b_rls_identidade.sql`,
+`…3c_fix_escalada.sql`. Rollback dos dados em `…etapa3_ROLLBACK.sql`.
+
+A chave de multi-tenancy não é `company_id`: são as 41 tabelas com a
+`instancia` do WhatsApp. O helper compara em `lower()` — o n8n/Evolution grava
+a instância em caixa variável, que foi o motivo da migration
+`20260828_reaction_instancia_case_insensitive`.
+
+Três armadilhas que decidiram o desenho:
+
+1. **Policies permissivas se somam com OR.** Deixar uma `using (true)` para trás
+   anularia o resto, então o bloco apaga todas as policies existentes de cada
+   tabela antes de criar a nova — eram 85, com nomes inconsistentes.
+2. **`ensure_table_setup` criava `allow_read using (true)`** na tabela de cada
+   clínica nova. Fechar tudo hoje e não mexer nela significaria que **cada
+   empresa cadastrada reabriria o buraco** para os próprios pacientes.
+3. **RLS decide quais LINHAS, não quais COLUNAS.** A policy de `users` da 3b
+   permitia `id = auth.uid()` no `WITH CHECK`; somada ao GRANT de coluna que já
+   existia, qualquer usuário logado gravava `role='adm'` na própria linha e
+   virava administrador da plataforma. Verificado ao vivo. A trava certa é o
+   GRANT de coluna: `role`, `email` e `active` saíram do UPDATE de
+   `authenticated` e passaram a ser exclusividade das RPCs.
+
+> O comentário daquela policy dizia que a escrita não incluía a si mesmo. Ele
+> descrevia a intenção; o código fazia o contrário. Comentário não é verificação.
+
+### Estado final verificado
+
+Com a anon key: leitura devolve zero linhas em todas as tabelas, escrita dá
+violação de RLS, e as RPCs privilegiadas respondem `permission denied`.
+
+Com JWT de clínica: enxerga só a própria instância **mesmo consultando sem
+filtro** — o isolamento é do banco, não do front. Bloqueado ao tentar escrever
+em outra clínica, mover uma linha própria para outra instância, alterar
+`billing_blocked`/`evolution_url`/`plan` da própria empresa (0 linhas afetadas),
+promover-se a ADM, desativar a conta ADM ou desativar a si mesmo.
+
+Telas conferidas com o front real, sem nenhum 4xx da API: painel do ADM
+(dashboard, empresas, operação, suporte) e da clínica (conversas, agenda,
+financeiro, CRM, contatos, métricas, catálogo, administração).
+
+> **Cuidado ao testar UPDATE:** o PostgREST devolve `204` mesmo quando o UPDATE
+> afeta zero linhas. Dois "ataques" pareceram ter sucesso até serem refeitos com
+> `Prefer: return=representation`, que devolve as linhas realmente alteradas.
+
+## Em aberto — decisão de produto
+
+**`viewer` pode escrever dado clínico da própria clínica.** As policies isolam
+por clínica, não por papel (`FOR ALL`). Não é falha de isolamento — o viewer só
+alcança a própria clínica — mas é least-privilege.
+
+Não foi fechado porque as duas telas discordam sobre o que esse papel é: o
+painel do ADM chama de *"Viewer — somente leitura"* e o da clínica chama de
+*"Operador — acesso ao painel de conversas"*. O app não bloqueia nenhuma ação
+de viewer no painel, então o banco está batendo com o comportamento real.
+Torná-lo read-only quebraria o atendimento se "Operador" for a intenção.
+Decidir o que o papel significa, e então alinhar rótulo, app e policy.
+
+## Também em aberto
+
+- **Sem limite de tentativas de login.** Agora é o GoTrue quem recebe as
+  tentativas, o que ajuda, mas vale configurar rate limit no painel do Supabase.
+- **`api_instancia` (credencial da Evolution) fica em `companies`.** Hoje só ADM
+  e a própria clínica leem, mas segue em texto puro numa tabela de aplicação —
+  o lugar dela é o cofre `app_secrets`.
+- **Sessão única com janela de 130s:** quem fecha a aba sem sair fica ~2 minutos
+  travado. É o desenho, não defeito, mas gera chamado de suporte.
