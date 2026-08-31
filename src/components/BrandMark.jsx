@@ -1,49 +1,26 @@
 /**
  * BrandMark — Logo CliniSac
- * Círculo com gradiente verde→violet→azul + bolha de chat com pulse line.
- * Props 'color' e 'strokeWidth' são ignoradas (mantidas só por backwards-compat
- * com chamadas antigas no codebase).
+ * Balão de conversa (o SAC/atendimento) com a cruz de saúde (a clínica),
+ * em degradê teal→azul. Props 'color'/'strokeWidth' são ignoradas (mantidas
+ * só por compat com chamadas antigas).
  */
 export default function BrandMark({ size = 32 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" aria-label="CliniSac">
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-label="CliniSac">
       <defs>
-        <linearGradient id="cs-ring" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%"  stopColor="#10B981" />
-          <stop offset="50%" stopColor="#8B5CF6" />
-          <stop offset="100%" stopColor="#3B82F6" />
+        <linearGradient id="cs-brand" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#13B7A6" />
+          <stop offset="1" stopColor="#2C6BEF" />
         </linearGradient>
       </defs>
-      {/* Anel com gradiente */}
-      <circle cx="50" cy="50" r="48" fill="url(#cs-ring)" />
-      {/* Bolha de chat (branca, com cauda no canto inferior esquerdo) */}
+      {/* Balão de conversa (com a cauda no canto inferior esquerdo) */}
       <path
-        d="M50 17
-           C 32 17, 18 31, 18 49
-           C 18 60, 24 70, 33 75
-           L 28 88
-           C 27 90, 30 92, 32 90
-           L 47 80
-           C 48 80, 49 80, 50 80
-           C 68 80, 82 67, 82 49
-           C 82 31, 68 17, 50 17 Z"
-        fill="#fff"
+        d="M17 8 H47 A11 11 0 0 1 58 19 V33 A11 11 0 0 1 47 44 H30 L20 53 V44 H17 A11 11 0 0 1 6 33 V19 A11 11 0 0 1 17 8 Z"
+        fill="url(#cs-brand)"
       />
-      {/* Linha de pulse */}
-      <path
-        d="M30 51
-           L 41 51
-           L 46 41
-           L 51 63
-           L 57 38
-           L 62 51
-           L 72 51"
-        stroke="#2563EB"
-        strokeWidth="5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
+      {/* Cruz de saúde */}
+      <rect x="28.5" y="14" width="7" height="24" rx="3.5" fill="#fff" />
+      <rect x="20" y="22.5" width="24" height="7" rx="3.5" fill="#fff" />
     </svg>
   )
 }
