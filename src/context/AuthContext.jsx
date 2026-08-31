@@ -407,22 +407,23 @@ export function AuthProvider({ children }) {
     return { ok: true }
   }
 
-  // Troca de senha pelo PRÓPRIO usuário: confere a senha atual (via login_user)
-  // e só então grava a nova. Não precisa de migração — usa RPCs que já existem.
+  // Troca de senha pelo PRÓPRIO usuário. A conferência da senha atual e a
+  // gravação acontecem na MESMA função no banco (change_own_password) — antes
+  // eram duas chamadas soltas, e a segunda (update_user_password) podia ser
+  // feita direto por qualquer um com a anon key, sem passar pela primeira.
+  // Só precisa do e-mail, então funciona também na sessão ADM (que não guarda id).
   async function changeOwnPassword(currentPassword, newPassword) {
     const email = session?.user?.email
-    const uid   = session?.user?.id
-    if (!email || !uid) return { ok: false, error: 'Sessão inválida. Entre de novo e tente outra vez.' }
-    if (!newPassword || newPassword.length < 6) return { ok: false, error: 'A nova senha precisa ter pelo menos 6 caracteres.' }
+    if (!email) return { ok: false, error: 'Sessão inválida. Entre de novo e tente outra vez.' }
+    if (!newPassword || newPassword.length < 8) return { ok: false, error: 'A nova senha precisa ter pelo menos 8 caracteres.' }
 
-    // 1) confere a senha atual
-    const { data, error } = await supabase.rpc('login_user', { p_email: email, p_password: currentPassword })
-    if (error) return { ok: false, error: 'Erro ao validar a senha. Tente de novo.' }
-    if (!data?.length) return { ok: false, error: 'Senha atual incorreta.' }
-
-    // 2) grava a nova
-    const { error: pwErr } = await supabase.rpc('update_user_password', { p_user_id: uid, p_password: newPassword })
-    if (pwErr) return { ok: false, error: pwErr.message }
+    const { data, error } = await supabase.rpc('change_own_password', {
+      p_email: email,
+      p_current_password: currentPassword,
+      p_new_password: newPassword,
+    })
+    if (error) return { ok: false, error: 'Erro ao trocar a senha. Tente de novo.' }
+    if (!data?.ok) return { ok: false, error: data?.error || 'Senha atual incorreta.' }
     return { ok: true }
   }
 

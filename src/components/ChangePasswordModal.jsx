@@ -17,7 +17,7 @@ export default function ChangePasswordModal({ onClose }) {
     e.preventDefault()
     setError('')
     if (!cur || !next || !confirm) { setError('Preencha todos os campos.'); return }
-    if (next.length < 6) { setError('A nova senha precisa ter pelo menos 6 caracteres.'); return }
+    if (next.length < 8) { setError('A nova senha precisa ter pelo menos 8 caracteres.'); return }
     if (next !== confirm) { setError('A confirmação não bate com a nova senha.'); return }
     if (next === cur) { setError('A nova senha precisa ser diferente da atual.'); return }
     setLoading(true)
@@ -79,7 +79,7 @@ export default function ChangePasswordModal({ onClose }) {
               <label style={labelStyle}>Nova senha</label>
               <div style={inputWrap}>
                 <input type={show ? 'text' : 'password'} value={next} onChange={e => setNext(e.target.value)}
-                  placeholder="mínimo 6 caracteres" autoComplete="new-password" style={inputStyle} />
+                  placeholder="mínimo 8 caracteres" autoComplete="new-password" style={inputStyle} />
                 <button type="button" onClick={() => setShow(v => !v)} title={show ? 'Ocultar' : 'Mostrar'}
                   style={{ position: 'absolute', right: 10, border: 'none', background: 'transparent', cursor: 'pointer', color: '#94A3B8', display: 'flex' }}>
                   {show ? <EyeOff size={16} /> : <Eye size={16} />}
