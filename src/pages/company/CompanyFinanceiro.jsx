@@ -1,0 +1,2024 @@
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
+import { useAuth } from '../../context/AuthContext'
+import { supabase } from '../../lib/supabase'
+import {
+  AreaChart, Area, BarChart, Bar, ComposedChart, Line,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  PieChart, Pie, Cell, Legend,
+} from 'recharts'
+import {
+  DollarSign, TrendingUp, TrendingDown, ArrowUpCircle, ArrowDownCircle,
+  Plus, Edit2, Trash2, Check, X, Search, Loader2, Lock, Calendar,
+  AlertTriangle, ChevronLeft, ChevronRight, AlertCircle, RefreshCw, ArrowRight,
+} from 'lucide-react'
+
+// ─── Fonts ───────────────────────────────────────────────────────────────────
+const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap');`
+
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const C = {
+  emerald:    '#059669',
+  emeraldDim: '#D1FAE5',
+  rose:       '#E11D48',
+  roseDim:    '#FFE4E6',
+  navy:       '#0F172A',
+  blue:       '#2563EB',
+  blueDim:    '#EFF6FF',
+  slate:      '#475569',
+  muted:      '#94A3B8',
+  border:     '#E2E8F0',
+  bg:         '#F8FAFC',
+  card:       '#FFFFFF',
+}
+
+const sora  = { fontFamily: '"Sora", sans-serif' }
+const mono  = { fontFamily: '"DM Mono", monospace' }
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function fmtBRL(val, compact = false) {
+  const n = parseFloat(val) || 0
+  if (compact && Math.abs(n) >= 1000) {
+    const k = n / 1000
+    return `R$ ${k.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}k`
+  }
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+function todayStr() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
+function currentMonthStr() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+}
+function fmtDateBR(s) {
+  if (!s) return '—'
+  const [y,m,d] = s.split('-')
+  return `${d}/${m}/${y}`
+}
+function monthLabel(s) {
+  const [,m] = s.split('-')
+  return ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][+m-1]
+}
+function monthLabelFull(s) {
+  const [y,m] = s.split('-')
+  return ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][+m-1]+' '+y
+}
+function addMonths(s, n) {
+  const [y,m] = s.split('-').map(Number)
+  const d = new Date(y, m-1+n, 1)
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+}
+function addMonthsToDate(ds, n) {
+  const [y,m,d] = ds.split('-').map(Number)
+  const dt = new Date(y, m-1+n, d)
+  const last = new Date(dt.getFullYear(), dt.getMonth()+1, 0).getDate()
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(Math.min(d,last)).padStart(2,'0')}`
+}
+function isOverdue(v, s) { return s === 'pendente' && v < todayStr() }
+function daysDiff(ds) {
+  return Math.floor((new Date(todayStr()+'T00:00:00') - new Date(ds+'T00:00:00')) / 86400000)
+}
+const pct = (a,b) => b > 0 ? ((a/b)*100).toFixed(1)+'%' : '—'
+
+const FORMAS = ['PIX','Dinheiro','Cartão Débito','Cartão Crédito','Boleto','Convênio','Transferência','Cheque']
+const CAT_COLORS = ['#2563EB','#16A34A','#DC2626','#D97706','#7C3AED','#0891B2','#DB2777','#059669','#64748B','#F59E0B']
+// Enquanto a migração de desconto/tarifa não roda em produção, o insert/update com
+// essas colunas falha. Detecta o erro e, se for isso, salva sem elas (o líquido já
+// está no `valor`, então nada quebra — só não guarda o detalhe desconto/tarifa).
+function isMissingDescTarifaErr(e) {
+  const m = ((e?.message||'') + (e?.details||'') + (e?.hint||'')).toLowerCase()
+  return (m.includes('desconto') || m.includes('tarifa')) && (m.includes('column') || m.includes('schema cache') || m.includes('does not exist'))
+}
+function stripDescTarifa({ desconto, tarifa, ...rest }) { return rest }
+const TIPO_LABEL = { corrente: 'Conta corrente', poupanca: 'Poupança', caixa: 'Caixa', outro: 'Outro' }
+const MONTHS_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+
+// ─── Custom recharts tooltip ──────────────────────────────────────────────────
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background: C.navy, border: 'none', borderRadius: 10, padding: '10px 14px', boxShadow: '0 8px 30px rgba(0,0,0,0.25)', ...sora }}>
+      <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 500 }}>{label}</div>
+      {payload.map((p, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#fff', marginBottom: i < payload.length-1 ? 3 : 0 }}>
+          <div style={{ width: 8, height: 8, borderRadius: 2, background: p.color }} />
+          <span style={{ color: '#CBD5E1', minWidth: 70 }}>{p.name}</span>
+          <span style={{ ...mono, fontWeight: 500, color: p.color }}>{fmtBRL(p.value)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Label style ─────────────────────────────────────────────────────────────
+const lbl = { display: 'block', fontSize: 10, fontWeight: 600, color: C.muted, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.08em', ...sora }
+const STATUS_MAP = {
+  pendente:  { bg: '#FFF7ED', color: '#C2410C', border: '#FED7AA', label: 'Pendente' },
+  pago:      { bg: '#ECFDF5', color: '#065F46', border: '#A7F3D0', label: 'Pago' },
+  cancelado: { bg: '#F8FAFC', color: '#64748B', border: '#CBD5E1', label: 'Cancelado' },
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function MetricCard({ label, value, icon: Icon, color, bg, loading, delta }) {
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '1.25rem 1.4rem', display: 'flex', alignItems: 'flex-start', gap: 14, flex: 1, minWidth: 155, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: 0, right: 0, width: 80, height: 80, borderRadius: '0 0 0 80px', background: bg, opacity: 0.5 }} />
+      <div style={{ width: 40, height: 40, borderRadius: 10, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Icon size={18} color={color} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, ...sora }}>{label}</div>
+        {loading
+          ? <div style={{ height: 28, width: 100, background: '#F1F5F9', borderRadius: 6, animation: 'pulse 1.5s infinite' }} />
+          : <div style={{ fontSize: 20, fontWeight: 700, color, lineHeight: 1, ...mono }}>{fmtBRL(value)}</div>
+        }
+        {delta != null && !loading && (
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 4, ...sora }}>este mês</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function StatusPill({ status }) {
+  const s = STATUS_MAP[status] || STATUS_MAP.pendente
+  return (
+    <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: s.bg, color: s.color, border: `1px solid ${s.border}`, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', ...sora }}>
+      {s.label}
+    </span>
+  )
+}
+
+function Toggle({ on, onChange }) {
+  return (
+    <button type="button" onClick={() => onChange(!on)} style={{ width: 40, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer', background: on ? C.blue : C.border, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+      <span style={{ position: 'absolute', top: 3, left: on ? 21 : 3, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+    </button>
+  )
+}
+
+function NavBtn({ onClick, children }) {
+  return (
+    <button onClick={onClick} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: C.muted, transition: 'all 0.15s' }}
+      onMouseEnter={e => { e.currentTarget.style.background = C.navy; e.currentTarget.style.color = '#fff' }}
+      onMouseLeave={e => { e.currentTarget.style.background = C.card; e.currentTarget.style.color = C.muted }}>
+      {children}
+    </button>
+  )
+}
+
+function TxRow({ tx, catMap, bankMap, onPaid, onEdit, onDelete, showDays, last, selected, onToggleSelect }) {
+  const cat = catMap[tx.categoria_id]
+  const over = isOverdue(tx.vencimento, tx.status)
+  const days = showDays ? daysDiff(tx.vencimento) : null
+  const bank = bankMap?.[tx.bank_account_id]
+  const juros = parseFloat(tx.juros) || 0
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', background: selected ? C.blueDim : over ? '#FFF7ED' : C.card, borderBottom: last ? 'none' : `1px solid ${C.border}`, transition: 'background 0.1s' }}
+      onMouseEnter={e => { if (!selected && !over) e.currentTarget.style.background = C.bg }}
+      onMouseLeave={e => { e.currentTarget.style.background = selected ? C.blueDim : over ? '#FFF7ED' : C.card }}>
+      {onToggleSelect && (tx.status === 'pendente'
+        ? <input type="checkbox" checked={!!selected} onChange={onToggleSelect} onClick={e => e.stopPropagation()} title="Selecionar p/ baixa em lote" style={{ width: 16, height: 16, cursor: 'pointer', flexShrink: 0, accentColor: C.blue }} />
+        : <span style={{ width: 16, flexShrink: 0 }} />)}
+      <div style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: cat?.cor || (tx.tipo === 'receita' ? C.emerald : C.rose) }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 600, fontSize: 13, color: over ? '#92400E' : C.navy, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220, ...sora }}>{tx.descricao}</span>
+          {over && <span style={{ fontSize: 9, fontWeight: 700, background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', borderRadius: 20, padding: '2px 7px', textTransform: 'uppercase', flexShrink: 0 }}>Vencido</span>}
+          {tx.recorrente && <span style={{ fontSize: 9, fontWeight: 700, background: '#EDE9FE', color: '#5B21B6', border: '1px solid #DDD6FE', borderRadius: 20, padding: '2px 7px', textTransform: 'uppercase', flexShrink: 0 }}>Recorrente</span>}
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 2, display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center', ...sora }}>
+          {tx.contact_nome && <span>{tx.contact_nome}</span>}
+          {cat && <span style={{ color: cat.cor || C.muted }}>● {cat.nome}</span>}
+          {tx.centro_custo && <span>· {tx.centro_custo}</span>}
+          {tx.forma_pagamento && <span style={{ background: '#F1F5F9', borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 600 }}>{tx.forma_pagamento}</span>}
+        </div>
+        {tx.status === 'pago' && (bank || tx.pagamento_at || juros > 0) && (
+          <div style={{ fontSize: 10.5, color: C.emerald, marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', ...sora }}>
+            {tx.pagamento_at && <span>✓ pago {fmtDateBR(tx.pagamento_at)}</span>}
+            {bank && <span style={{ color: C.slate }}>🏦 {bank.nome}</span>}
+            {juros > 0 && <span style={{ color: C.rose }}>+ juros {fmtBRL(juros)}</span>}
+          </div>
+        )}
+      </div>
+      <div style={{ textAlign: 'center', minWidth: 86, flexShrink: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 500, color: over ? '#D97706' : C.slate, ...mono }}>{fmtDateBR(tx.vencimento)}</div>
+        {showDays && days != null && <div style={{ fontSize: 10, color: C.rose, marginTop: 1 }}>{days}d atraso</div>}
+        {!showDays && tx.total_parcelas > 1 && <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{tx.parcela_atual}/{tx.total_parcelas}</div>}
+      </div>
+      <div style={{ textAlign: 'right', minWidth: 110, flexShrink: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: tx.tipo === 'receita' ? C.emerald : C.rose, ...mono }}>{fmtBRL(tx.valor)}</div>
+      </div>
+      {!showDays && <div style={{ minWidth: 80, flexShrink: 0 }}><StatusPill status={tx.status} /></div>}
+      <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+        {tx.status === 'pendente' && onPaid && (
+          <button onClick={() => onPaid(tx)} title="Marcar como recebido" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, background: '#ECFDF5', border: '1px solid #A7F3D0', color: C.emerald, cursor: 'pointer' }}><Check size={13} /></button>
+        )}
+        {onEdit && <button onClick={() => onEdit(tx)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, background: C.blueDim, border: `1px solid #BFDBFE`, color: C.blue, cursor: 'pointer' }}><Edit2 size={12} /></button>}
+        {onDelete && <button onClick={() => onDelete(tx)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, background: '#FFF1F2', border: '1px solid #FECDD3', color: C.rose, cursor: 'pointer' }}><Trash2 size={12} /></button>}
+      </div>
+    </div>
+  )
+}
+
+// Linha-pai de um grupo recorrente: mostra o total do período e expande as sessões.
+function GroupRow({ item, catMap, bankMap, expanded, onToggle, onPaidGroup, onPaid, onEdit, onDelete, showDays, last, selectedSet, onToggleSelect }) {
+  const cat = catMap[item.categoria_id]
+  const over = item.anyOver
+  const nPag = item.pagas.length, nPend = item.pend.length
+  const allSelected = nPend > 0 && item.pend.every(t => selectedSet?.has(t.id))
+  return (
+    <div style={{ borderBottom: last && !expanded ? 'none' : `1px solid ${C.border}` }}>
+      <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', background: allSelected ? C.blueDim : over ? '#FFF7ED' : C.card, cursor: 'pointer' }}
+        onMouseEnter={e => { if (!allSelected && !over) e.currentTarget.style.background = C.bg }}
+        onMouseLeave={e => { e.currentTarget.style.background = allSelected ? C.blueDim : over ? '#FFF7ED' : C.card }}>
+        {onToggleSelect && (nPend > 0
+          ? <input type="checkbox" checked={allSelected} onChange={() => onToggleSelect(item.pend.map(t => t.id), !allSelected)} onClick={e => e.stopPropagation()} title="Selecionar as sessões pendentes" style={{ width: 16, height: 16, cursor: 'pointer', flexShrink: 0, accentColor: C.blue }} />
+          : <span style={{ width: 16, flexShrink: 0 }} />)}
+        <ChevronRight size={15} style={{ color: C.muted, flexShrink: 0, transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+        <div style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: cat?.cor || C.emerald }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600, fontSize: 13, color: over ? '#92400E' : C.navy, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240, ...sora }}>{item.descricao}</span>
+            <span style={{ fontSize: 9, fontWeight: 700, background: '#EDE9FE', color: '#5B21B6', border: '1px solid #DDD6FE', borderRadius: 20, padding: '2px 7px', textTransform: 'uppercase', flexShrink: 0 }}>Recorrente · {item.txs.length} sessões</span>
+            {over && <span style={{ fontSize: 9, fontWeight: 700, background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', borderRadius: 20, padding: '2px 7px', textTransform: 'uppercase', flexShrink: 0 }}>Vencido</span>}
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 2, display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center', ...sora }}>
+            {item.contact_nome && <span>{item.contact_nome}</span>}
+            {cat && <span style={{ color: cat.cor || C.muted }}>● {cat.nome}</span>}
+            <span>{nPend} a receber{nPag ? ` · ${nPag} recebida${nPag > 1 ? 's' : ''}` : ''}</span>
+          </div>
+        </div>
+        <div style={{ textAlign: 'center', minWidth: 86, flexShrink: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 500, color: over ? '#D97706' : C.slate, ...mono }}>{fmtDateBR(item.vencMin)}{item.vencMax && item.vencMax !== item.vencMin ? `–${fmtDateBR(item.vencMax).slice(0, 5)}` : ''}</div>
+        </div>
+        <div style={{ textAlign: 'right', minWidth: 110, flexShrink: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.emerald, ...mono }}>{fmtBRL(item.total)}</div>
+          {nPend > 0 && nPag > 0 && <div style={{ fontSize: 10, color: C.muted, ...mono }}>{fmtBRL(item.pendTotal)} a receber</div>}
+        </div>
+        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+          {nPend > 0 && onPaidGroup && (
+            <button onClick={e => { e.stopPropagation(); onPaidGroup(item) }} title={`Receber as ${nPend} sessões pendentes de uma vez`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 30, padding: '0 10px', borderRadius: 8, background: '#ECFDF5', border: '1px solid #A7F3D0', color: C.emerald, cursor: 'pointer', fontSize: 11.5, fontWeight: 700, ...sora }}>
+              <Check size={13} /> Receber tudo
+            </button>
+          )}
+        </div>
+      </div>
+      {expanded && (
+        <div style={{ background: '#FAFAFA', borderTop: `1px solid ${C.border}`, paddingLeft: 24 }}>
+          {item.txs.map((tx, i) => (
+            <TxRow key={tx.id} tx={tx} catMap={catMap} bankMap={bankMap} onPaid={onPaid} onEdit={onEdit} onDelete={onDelete} showDays={showDays} last={i === item.txs.length - 1} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+export default function CompanyFinanceiro() {
+  const { session } = useAuth()
+  const instance = session?.company?.instance
+  const isAdmin = session?.user?.role === 'admin'
+
+  const [tab, setTab] = useState('visaogeral')
+  const [transactions, setTransactions] = useState([])
+  const [categories, setCategories] = useState([])
+  const [bankAccounts, setBankAccounts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)  // erro no carregamento (mostra aviso + tentar de novo)
+  const [reloadKey, setReloadKey] = useState(0)     // bump pra recarregar
+
+  const [filterMonth, setFilterMonth] = useState(currentMonthStr())
+  const [filterStatus, setFilterStatus] = useState('todos')
+  const [filterSearch, setFilterSearch] = useState('')
+  const [filterForma, setFilterForma] = useState('todos')
+  const [scope, setScope] = useState('mes')   // 'mes' = mês · 'periodo' = intervalo de datas · 'vencidas' = todas vencidas
+  const [filterFrom, setFilterFrom] = useState('')  // intervalo De (scope 'periodo')
+  const [filterTo, setFilterTo] = useState('')      // intervalo Até
+  const [selected, setSelected] = useState(new Set()) // ids selecionados p/ baixa em lote
+  const [dreYear, setDreYear] = useState(new Date().getFullYear())
+  const [catPeriod, setCatPeriod] = useState(currentMonthStr())
+  const [catTipo, setCatTipo] = useState('receita')
+
+  const [modal, setModal] = useState(null)
+  const [modalErr, setModalErr] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [newCat, setNewCat] = useState(null)     // { nome, cor } — criar categoria inline no modal
+  const [savingCat, setSavingCat] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const [payModal, setPayModal] = useState(null)      // { tx, pagamento_at, juros, bank_account_id, forma_pagamento, groupTxIds? }
+  const [payErr, setPayErr] = useState('')
+  const [recurMap, setRecurMap] = useState({})        // appointment_id → recurrence_group_id (pra agrupar recorrentes)
+  const [expandedGroups, setExpandedGroups] = useState({}) // grupos de recorrência abertos no 'a receber'
+  const [bankModal, setBankModal] = useState(null)     // { mode, data }
+  const [transfers, setTransfers] = useState([])
+  const [transferModal, setTransferModal] = useState(null)
+  const [savingTransfer, setSavingTransfer] = useState(false)
+  const [savingBank, setSavingBank] = useState(false)
+  const [confirmDelBank, setConfirmDelBank] = useState(null)
+
+  useEffect(() => {
+    if (!instance || !isAdmin) return
+    let cancelled = false
+    setLoading(true)
+    setLoadError(null)
+    const y = new Date().getFullYear()
+    // O PostgREST devolve no máximo 1000 linhas por request. Clínicas com muito
+    // movimento (receitas de agendamentos) passam disso, e como vinha ordenado
+    // por vencimento DESC, os lançamentos mais ANTIGOS (contas vencidas!) eram
+    // cortados e sumiam. Paginamos até trazer tudo do período.
+    async function fetchAllTransactions() {
+      const PAGE = 1000
+      let from = 0, all = []
+      for (let guard = 0; guard < 50; guard++) {
+        const { data, error } = await supabase.from('financial_transactions').select('*')
+          .eq('instancia', instance)
+          .gte('vencimento', `${y-1}-01-01`).lte('vencimento', `${y+1}-12-31`)
+          .order('vencimento', { ascending: false })
+          .range(from, from + PAGE - 1)
+        if (error) return { error }
+        all = all.concat(data || [])
+        if (!data || data.length < PAGE) break
+        from += PAGE
+      }
+      return { data: all }
+    }
+    // Mapa appointment_id → recurrence_group_id, só dos agendamentos que fazem
+    // parte de uma recorrência. Usado pra agrupar as sessões no "a receber".
+    async function fetchRecurringAppts() {
+      const PAGE = 1000
+      let from = 0, all = []
+      for (let guard = 0; guard < 50; guard++) {
+        const { data, error } = await supabase.from('appointments').select('id,recurrence_group_id')
+          .eq('instancia', instance).not('recurrence_group_id', 'is', null)
+          .range(from, from + PAGE - 1)
+        if (error) return {}
+        all = all.concat(data || [])
+        if (!data || data.length < PAGE) break
+        from += PAGE
+      }
+      const map = {}; all.forEach(a => { if (a.recurrence_group_id) map[a.id] = a.recurrence_group_id }); return map
+    }
+    Promise.all([
+      fetchAllTransactions(),
+      supabase.from('financial_categories').select('*')
+        .in('instancia', [instance, '_default_']).order('nome'),
+      supabase.from('bank_accounts').select('*').eq('instancia', instance).order('nome'),
+      supabase.from('bank_transfers').select('*').eq('instancia', instance).order('data', { ascending: false }),
+      fetchRecurringAppts(),
+    ]).then(([txRes, catRes, bankRes, trRes, recRes]) => {
+      if (cancelled) return
+      // A lista de lançamentos é o essencial: se ela falhar, NÃO deixa a tela
+      // vazia sem explicação (parecia "não tem conta nenhuma"). Mostra o erro.
+      if (txRes.error) {
+        console.error('[financeiro] falha ao carregar lançamentos:', txRes.error)
+        setLoadError(txRes.error.message || 'Não foi possível carregar os lançamentos.')
+        setLoading(false)
+        return
+      }
+      setTransactions(txRes.data || [])
+      if (!catRes.error && catRes.data) setCategories(catRes.data)
+      if (!bankRes.error && bankRes.data) setBankAccounts(bankRes.data)
+      if (!trRes.error && trRes.data) setTransfers(trRes.data)
+      if (recRes && typeof recRes === 'object') setRecurMap(recRes)
+      setLoading(false)
+    }).catch(err => {
+      if (cancelled) return
+      console.error('[financeiro] erro inesperado no carregamento:', err)
+      setLoadError(err?.message || 'Erro de conexão ao carregar o financeiro.')
+      setLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [instance, isAdmin, reloadKey])
+
+  // ── Derived ───────────────────────────────────────────────────────────────
+  const catMap = useMemo(() => {
+    const m = {}; categories.forEach(c => { m[c.id] = c }); return m
+  }, [categories])
+
+  const bankMap = useMemo(() => {
+    const m = {}; bankAccounts.forEach(b => { m[b.id] = b }); return m
+  }, [bankAccounts])
+
+  // Saldo/movimento por conta: saldo_inicial + receitas pagas − (despesas pagas + juros)
+  const bankBalances = useMemo(() => {
+    const m = {}
+    bankAccounts.forEach(b => { m[b.id] = { entradas: 0, saidas: 0, saldo: parseFloat(b.saldo_inicial) || 0 } })
+    transactions.forEach(t => {
+      if (t.status !== 'pago' || !t.bank_account_id || !m[t.bank_account_id]) return
+      const v = parseFloat(t.valor) || 0
+      const j = parseFloat(t.juros) || 0
+      if (t.tipo === 'receita') { m[t.bank_account_id].entradas += v; m[t.bank_account_id].saldo += v }
+      else { const out = v + j; m[t.bank_account_id].saidas += out; m[t.bank_account_id].saldo -= out }
+    })
+    // Transferências: saem da origem, entram no destino (neutro no resultado)
+    transfers.forEach(tr => {
+      const v = parseFloat(tr.valor) || 0
+      if (tr.from_account_id && m[tr.from_account_id]) { m[tr.from_account_id].saidas += v; m[tr.from_account_id].saldo -= v }
+      if (tr.to_account_id && m[tr.to_account_id]) { m[tr.to_account_id].entradas += v; m[tr.to_account_id].saldo += v }
+    })
+    return m
+  }, [bankAccounts, transactions, transfers])
+
+  const cm = currentMonthStr()
+
+  const summary = useMemo(() => {
+    let aReceber = 0, aPagar = 0, recebido = 0, pago = 0
+    transactions.filter(t => t.vencimento?.startsWith(cm)).forEach(t => {
+      const v = parseFloat(t.valor) || 0
+      if (t.tipo === 'receita') { if (t.status === 'pendente') aReceber += v; if (t.status === 'pago') recebido += v }
+      else { if (t.status === 'pendente') aPagar += v; if (t.status === 'pago') pago += v }
+    })
+    return { aReceber, aPagar, recebido, pago, saldo: recebido - pago }
+  }, [transactions, cm])
+
+  const tipoAtual = tab === 'receber' ? 'receita' : 'despesa'
+  // Quantas contas do tipo atual estão vencidas (pendente + venc. no passado) —
+  // independente do mês. Alimenta o selo do botão "Vencidas".
+  const overdueCount = useMemo(
+    () => transactions.filter(t => t.tipo === tipoAtual && isOverdue(t.vencimento, t.status)).length,
+    [transactions, tipoAtual]
+  )
+  const filteredTx = useMemo(() => {
+    if (tab !== 'receber' && tab !== 'pagar') return []
+    const q = filterSearch.toLowerCase().trim()
+    return transactions.filter(t => {
+      if (t.tipo !== tipoAtual) return false
+      if (scope === 'vencidas') {
+        // Todas as vencidas, de qualquer mês (mês/status não se aplicam aqui)
+        if (!isOverdue(t.vencimento, t.status)) return false
+      } else if (scope === 'periodo') {
+        const v = t.vencimento || ''
+        if (filterFrom && v < filterFrom) return false
+        if (filterTo && v > filterTo) return false
+        if (filterStatus !== 'todos' && t.status !== filterStatus) return false
+      } else {
+        if (!t.vencimento?.startsWith(filterMonth)) return false
+        if (filterStatus !== 'todos' && t.status !== filterStatus) return false
+      }
+      if (filterForma !== 'todos' && t.forma_pagamento !== filterForma) return false
+      if (q && !(t.descricao||'').toLowerCase().includes(q) && !(t.contact_nome||'').toLowerCase().includes(q)) return false
+      return true
+    }).sort((a, b) => {
+      const ao = isOverdue(a.vencimento, a.status) ? 0 : 1, bo = isOverdue(b.vencimento, b.status) ? 0 : 1
+      if (ao !== bo) return ao - bo
+      return (a.vencimento||'').localeCompare(b.vencimento||'')
+    })
+  }, [transactions, tab, tipoAtual, filterMonth, filterFrom, filterTo, filterStatus, filterSearch, filterForma, scope])
+
+  // Agrupa as sessões de um mesmo agendamento recorrente (recurrence_group_id) numa
+  // linha só, com o total do período. Grupo com 1 sessão visível vira linha normal.
+  const displayItems = useMemo(() => {
+    const groups = new Map()
+    const items = []
+    for (const tx of filteredTx) {
+      const gk = tx.appointment_id ? recurMap[tx.appointment_id] : null
+      if (gk) {
+        if (!groups.has(gk)) groups.set(gk, [])
+        groups.get(gk).push(tx)
+      } else {
+        items.push({ type: 'single', tx })
+      }
+    }
+    for (const [gk, txs] of groups) {
+      if (txs.length <= 1) { items.push({ type: 'single', tx: txs[0] }); continue }
+      const total = txs.reduce((s, t) => s + (parseFloat(t.valor) || 0), 0)
+      const pend = txs.filter(t => t.status === 'pendente')
+      const pagas = txs.filter(t => t.status === 'pago')
+      const pendTotal = pend.reduce((s, t) => s + (parseFloat(t.valor) || 0), 0)
+      const vencs = txs.map(t => t.vencimento).filter(Boolean).sort()
+      const anyOver = txs.some(t => isOverdue(t.vencimento, t.status))
+      items.push({
+        type: 'group', key: gk, txs, total, pend, pagas, pendTotal,
+        vencMin: vencs[0], vencMax: vencs[vencs.length - 1], anyOver,
+        descricao: txs[0].descricao, contact_nome: txs[0].contact_nome, categoria_id: txs[0].categoria_id,
+      })
+    }
+    items.sort((a, b) => {
+      const aOver = a.type === 'group' ? a.anyOver : isOverdue(a.tx.vencimento, a.tx.status)
+      const bOver = b.type === 'group' ? b.anyOver : isOverdue(b.tx.vencimento, b.tx.status)
+      if (aOver !== bOver) return aOver ? -1 : 1
+      const av = a.type === 'group' ? a.vencMin : a.tx.vencimento
+      const bv = b.type === 'group' ? b.vencMin : b.tx.vencimento
+      return (av || '').localeCompare(bv || '')
+    })
+    return items
+  }, [filteredTx, recurMap])
+
+  // Fluxo de caixa chart data (10 months)
+  const fluxoData = useMemo(() => {
+    return Array.from({ length: 10 }, (_, i) => {
+      const m = addMonths(cm, i - 6)
+      const tx = transactions.filter(t => t.vencimento?.startsWith(m) && t.status !== 'cancelado')
+      let recPrev = 0, despPrev = 0, recReal = 0, despReal = 0
+      tx.forEach(t => {
+        const v = parseFloat(t.valor)||0
+        if (t.tipo === 'receita') { recPrev += v; if (t.status === 'pago') recReal += v }
+        else { despPrev += v; if (t.status === 'pago') despReal += v }
+      })
+      const isFuture = m > cm
+      return { month: monthLabel(m), fullMonth: m, recPrev, despPrev, saldoPrev: recPrev-despPrev, recReal: isFuture ? null : recReal, despReal: isFuture ? null : despReal, saldoReal: isFuture ? null : recReal-despReal, isCurrent: m === cm, isFuture }
+    })
+  }, [transactions, cm])
+
+  // DRE chart + table data
+  const dreData = useMemo(() => {
+    let totRec = 0, totDesp = 0
+    const months = MONTHS_PT.map((_, i) => {
+      const m = `${dreYear}-${String(i+1).padStart(2,'0')}`
+      const tx = transactions.filter(t => t.vencimento?.startsWith(m) && t.status !== 'cancelado')
+      let rec = 0, desp = 0
+      tx.forEach(t => { const v = parseFloat(t.valor)||0; if (t.tipo === 'receita') rec += v; else desp += v })
+      totRec += rec; totDesp += desp
+      return { month: MONTHS_PT[i], rec, desp, resultado: rec-desp, isCurrent: m === cm }
+    })
+    // P&L by category for the year
+    const txYear = transactions.filter(t => t.vencimento?.startsWith(String(dreYear)) && t.status !== 'cancelado')
+    const byRec = {}, byDesp = {}
+    txYear.forEach(t => {
+      const v = parseFloat(t.valor)||0, key = t.categoria_id || '__sem__'
+      if (t.tipo === 'receita') byRec[key] = (byRec[key]||0)+v
+      else byDesp[key] = (byDesp[key]||0)+v
+    })
+    const sort = obj => Object.entries(obj).sort((a,b) => b[1]-a[1])
+    return { months, totRec, totDesp, totRes: totRec-totDesp, catRec: sort(byRec), catDesp: sort(byDesp) }
+  }, [transactions, dreYear, cm])
+
+  // Aging data
+  const agingData = useMemo(() => {
+    const today = todayStr()
+    const overdue = transactions.filter(t => t.tipo === 'receita' && t.status === 'pendente' && t.vencimento < today)
+    const buckets = [
+      { label: '1–30 dias', key: '0-30', color: '#F59E0B', items: [] },
+      { label: '31–60 dias', key: '31-60', color: '#F97316', items: [] },
+      { label: '61–90 dias', key: '61-90', color: '#EF4444', items: [] },
+      { label: '90+ dias',  key: '90+',   color: '#7F1D1D', items: [] },
+    ]
+    overdue.forEach(t => {
+      const d = daysDiff(t.vencimento)
+      buckets[d <= 30 ? 0 : d <= 60 ? 1 : d <= 90 ? 2 : 3].items.push(t)
+    })
+    buckets.forEach(b => { b.total = b.items.reduce((s,t) => s+(parseFloat(t.valor)||0), 0) })
+    return buckets
+  }, [transactions])
+
+  // Por categoria data
+  const catData = useMemo(() => {
+    const tx = transactions.filter(t => t.vencimento?.startsWith(catPeriod) && t.tipo === catTipo && t.status !== 'cancelado')
+    const total = tx.reduce((s,t) => s+(parseFloat(t.valor)||0), 0)
+    const byCat = {}
+    tx.forEach(t => {
+      const key = t.categoria_id||'__sem__'
+      if (!byCat[key]) byCat[key] = { count: 0, total: 0 }
+      byCat[key].count++; byCat[key].total += parseFloat(t.valor)||0
+    })
+    const items = Object.entries(byCat).map(([key, val]) => ({ key, ...val, cat: catMap[key]||null })).sort((a,b) => b.total-a.total)
+    const pieData = items.map(item => ({ name: item.cat?.nome||'Sem categoria', value: item.total, color: item.cat?.cor||(catTipo==='receita'?C.emerald:C.rose) }))
+    return { total, items, pieData, txCount: tx.length }
+  }, [transactions, catPeriod, catTipo, catMap])
+
+  // ── Visão Geral data ──────────────────────────────────────────────────────
+  const visaoData = useMemo(() => {
+    const thisYear = new Date().getFullYear()
+    // Last 6 months bars
+    const months6 = Array.from({ length: 6 }, (_, i) => {
+      const m = addMonths(cm, i - 5)
+      const tx = transactions.filter(t => t.vencimento?.startsWith(m))
+      let recPrev = 0, despPrev = 0, recReal = 0, despReal = 0
+      tx.forEach(t => {
+        if (t.status === 'cancelado') return
+        const v = parseFloat(t.valor) || 0
+        if (t.tipo === 'receita') { recPrev += v; if (t.status === 'pago') recReal += v }
+        else { despPrev += v; if (t.status === 'pago') despReal += v }
+      })
+      return { month: monthLabel(m), recPrev, despPrev, recReal, despReal, saldo: recReal - despReal, isCurrent: m === cm }
+    })
+    // YTD
+    const ytdTx = transactions.filter(t => t.vencimento?.startsWith(String(thisYear)))
+    let ytdRec = 0, ytdDesp = 0
+    ytdTx.forEach(t => {
+      if (t.status === 'cancelado') return
+      const v = parseFloat(t.valor) || 0
+      if (t.tipo === 'receita') ytdRec += v; else ytdDesp += v
+    })
+    // Top contatos this month
+    const cmTx = transactions.filter(t => t.vencimento?.startsWith(cm) && t.tipo === 'receita' && t.status !== 'cancelado' && t.contact_nome)
+    const topContatos = {}
+    cmTx.forEach(t => {
+      const k = t.contact_nome.trim()
+      if (!topContatos[k]) topContatos[k] = 0
+      topContatos[k] += parseFloat(t.valor) || 0
+    })
+    const topContatosList = Object.entries(topContatos).sort((a,b) => b[1]-a[1]).slice(0, 5)
+    // Inadimplência total
+    const inadTotal = transactions.filter(t => t.tipo === 'receita' && t.status === 'pendente' && t.vencimento < todayStr())
+      .reduce((s,t) => s + (parseFloat(t.valor)||0), 0)
+    // Categorias this month pie
+    const cmRec = transactions.filter(t => t.vencimento?.startsWith(cm) && t.tipo === 'receita' && t.status !== 'cancelado')
+    const byCat = {}
+    cmRec.forEach(t => {
+      const key = t.categoria_id || '__sem__'
+      if (!byCat[key]) byCat[key] = 0
+      byCat[key] += parseFloat(t.valor) || 0
+    })
+    const catPie = Object.entries(byCat).map(([k, v]) => ({
+      name: catMap[k]?.nome || 'Sem categoria',
+      value: v,
+      color: catMap[k]?.cor || C.emerald,
+    })).sort((a,b) => b.value - a.value).slice(0, 6)
+    return { months6, ytdRec, ytdDesp, ytdSaldo: ytdRec - ytdDesp, topContatosList, inadTotal, catPie }
+  }, [transactions, cm, catMap])
+
+  function catsForTipo(t) { return categories.filter(c => c.tipo === t || c.tipo === 'ambos') }
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  function openNew() {
+    setModal({ mode: 'new', data: { tipo: tab === 'pagar' ? 'despesa' : 'receita', descricao: '', valor: '', desconto: '', tarifa: '', vencimento: todayStr(), categoria_id: '', contact_nome: '', centro_custo: '', forma_pagamento: '', observacoes: '', parcelado: false, num_parcelas: 2, recorrente: false, recorrencia_meses: 3 } })
+    setNewCat(null); setModalErr('')
+  }
+  function openEdit(tx) {
+    // O `valor` guardado é o LÍQUIDO. Reconstrói o bruto pra edição = valor + desconto + tarifa.
+    const desc = parseFloat(tx.desconto) || 0, tar = parseFloat(tx.tarifa) || 0
+    const bruto = (parseFloat(tx.valor) || 0) + desc + tar
+    setModal({ mode: 'edit', data: { ...tx, valor: bruto ? bruto.toString() : '', desconto: desc ? desc.toString() : '', tarifa: tar ? tar.toString() : '', parcelado: false, num_parcelas: 2, recorrente: false, recorrencia_meses: 3 } })
+    setNewCat(null); setModalErr('')
+  }
+
+  async function handleSave() {
+    const { data: d } = modal
+    if (!d.descricao?.trim()) { setModalErr('Descrição é obrigatória.'); return }
+    if (!d.valor || isNaN(parseFloat(d.valor)) || parseFloat(d.valor) <= 0) { setModalErr('Informe um valor válido.'); return }
+    if (!d.vencimento) { setModalErr('Data de vencimento é obrigatória.'); return }
+    // Valor líquido = bruto − desconto − tarifa (é o que fica gravado em `valor`).
+    const bruto = parseFloat(d.valor) || 0
+    const desconto = parseFloat(d.desconto) || 0
+    const tarifa = parseFloat(d.tarifa) || 0
+    if (desconto < 0 || tarifa < 0) { setModalErr('Desconto/tarifa não podem ser negativos.'); return }
+    const liquido = +(bruto - desconto - tarifa).toFixed(2)
+    if (liquido <= 0) { setModalErr('Desconto + tarifa não podem ser maiores ou iguais ao valor.'); return }
+    setSaving(true); setModalErr('')
+
+    if (modal.mode === 'edit') {
+      const payload = { tipo: d.tipo, descricao: d.descricao.trim(), valor: liquido, desconto, tarifa, vencimento: d.vencimento, categoria_id: d.categoria_id||null, contact_nome: d.contact_nome?.trim()||null, centro_custo: d.centro_custo?.trim()||null, forma_pagamento: d.forma_pagamento||null, observacoes: d.observacoes?.trim()||null, status: d.status }
+      let { data: upd, error } = await supabase.from('financial_transactions').update(payload).eq('id', d.id).select().single()
+      if (error && isMissingDescTarifaErr(error)) ({ data: upd, error } = await supabase.from('financial_transactions').update(stripDescTarifa(payload)).eq('id', d.id).select().single())
+      setSaving(false)
+      if (error) { setModalErr('Erro: '+error.message); return }
+      setTransactions(prev => prev.map(t => t.id === upd.id ? upd : t)); setModal(null)
+      return
+    }
+
+    const isParcela = d.parcelado && !d.recorrente
+    const isRec = d.recorrente
+    const num = isParcela ? Math.max(2,Math.min(24,+d.num_parcelas||2)) : isRec ? Math.max(2,Math.min(24,+d.recorrencia_meses||3)) : 1
+    const gParcela = isParcela ? crypto.randomUUID() : null
+    const gRec = isRec ? crypto.randomUUID() : null
+
+    const rows = Array.from({ length: num }, (_,i) => ({
+      instancia: instance, tipo: d.tipo,
+      descricao: isParcela ? `${d.descricao.trim()} (${i+1}/${num})` : d.descricao.trim(),
+      valor: liquido, desconto, tarifa, vencimento: num > 1 ? addMonthsToDate(d.vencimento, i) : d.vencimento,
+      categoria_id: d.categoria_id||null, contact_nome: d.contact_nome?.trim()||null, centro_custo: d.centro_custo?.trim()||null,
+      forma_pagamento: d.forma_pagamento||null, observacoes: d.observacoes?.trim()||null,
+      status: 'pendente', created_by: session?.user?.id||null,
+      grupo_parcelas: gParcela, parcela_atual: isParcela ? i+1 : null, total_parcelas: isParcela ? num : null,
+      recorrente: isRec||false, recorrencia_tipo: isRec ? 'mensal' : null, grupo_recorrencia: gRec,
+    }))
+    let { data: ins, error } = await supabase.from('financial_transactions').insert(rows).select()
+    if (error && isMissingDescTarifaErr(error)) ({ data: ins, error } = await supabase.from('financial_transactions').insert(rows.map(stripDescTarifa)).select())
+    setSaving(false)
+    if (error) { setModalErr('Erro: '+error.message); return }
+    if (ins) setTransactions(prev => [...ins, ...prev]); setModal(null)
+  }
+
+  // Cria uma categoria nova (do tipo atual do lançamento) e já seleciona.
+  async function createCategory() {
+    const nome = (newCat?.nome || '').trim()
+    if (!nome || savingCat) return
+    setSavingCat(true)
+    const { data, error } = await supabase.from('financial_categories')
+      .insert({ instancia: instance, nome, tipo: modal?.data?.tipo || 'receita', cor: newCat.cor || CAT_COLORS[0] })
+      .select().single()
+    setSavingCat(false)
+    if (error) { setModalErr('Erro ao criar categoria: ' + error.message); return }
+    if (data) {
+      setCategories(prev => [...prev, data].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')))
+      setModal(p => ({ ...p, data: { ...p.data, categoria_id: data.id } }))
+      setNewCat(null)
+    }
+  }
+
+  // Abre o modal de pagamento (data, juros, conta) em vez de marcar direto
+  function handleMarkPaid(tx) {
+    setPayModal({
+      tx,
+      pagamento_at: todayStr(),
+      juros: '',
+      bank_account_id: bankAccounts.find(b => b.ativo !== false)?.id || bankAccounts[0]?.id || '',
+      forma_pagamento: tx.forma_pagamento || '',
+    })
+    setPayErr('')
+  }
+
+  // ── Seleção em lote (dar baixa em várias de uma vez) ────────────────────────
+  function toggleSelect(id) {
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+  function toggleSelectMany(ids, on) {
+    setSelected(prev => { const n = new Set(prev); ids.forEach(id => on ? n.add(id) : n.delete(id)); return n })
+  }
+  // Abre o modal de recebimento/pagamento pros lançamentos selecionados (só os pendentes).
+  function handleBulkPay() {
+    const txs = transactions.filter(t => selected.has(t.id) && t.status === 'pendente')
+    if (!txs.length) return
+    const total = txs.reduce((s, t) => s + (parseFloat(t.valor) || 0), 0)
+    setPayModal({
+      tx: { descricao: `${txs.length} lançamento${txs.length > 1 ? 's' : ''}`, valor: total, vencimento: txs.map(t => t.vencimento).filter(Boolean).sort()[0], tipo: tipoAtual },
+      groupTxIds: txs.map(t => t.id),
+      pagamento_at: todayStr(),
+      juros: '',
+      bank_account_id: bankAccounts.find(b => b.ativo !== false)?.id || bankAccounts[0]?.id || '',
+      forma_pagamento: '',
+    })
+    setPayErr('')
+  }
+  // Limpa a seleção ao trocar de aba/escopo (evita seleção "fantasma").
+  useEffect(() => { setSelected(new Set()) }, [tab, scope])
+
+  // "Receber tudo" de um grupo recorrente: recebe todas as sessões pendentes de uma vez.
+  function handleMarkPaidGroup(item) {
+    if (!item?.pend?.length) return
+    setPayModal({
+      tx: { descricao: `${item.descricao} · ${item.pend.length} sessões`, valor: item.pendTotal, vencimento: item.vencMin, tipo: 'receita' },
+      groupTxIds: item.pend.map(t => t.id),
+      pagamento_at: todayStr(),
+      juros: '',
+      bank_account_id: bankAccounts.find(b => b.ativo !== false)?.id || bankAccounts[0]?.id || '',
+      forma_pagamento: '',
+    })
+    setPayErr('')
+  }
+
+  async function confirmPay() {
+    if (!payModal) return
+    const p = payModal
+    // Recebimento em lote (grupo recorrente): marca todas as sessões pendentes.
+    if (p.groupTxIds && p.groupTxIds.length) {
+      const { data: upd, error } = await supabase.from('financial_transactions').update({
+        status: 'pago',
+        pagamento_at: p.pagamento_at || todayStr(),
+        bank_account_id: p.bank_account_id || null,
+        forma_pagamento: p.forma_pagamento || null,
+      }).in('id', p.groupTxIds).select()
+      if (error) { setPayErr('Erro: ' + error.message); return }
+      if (upd) setTransactions(prev => prev.map(t => { const u = upd.find(x => x.id === t.id); return u || t }))
+      setSelected(new Set())
+      setPayModal(null)
+      return
+    }
+    const juros = p.juros ? parseFloat(p.juros) : 0
+    if (p.juros && (isNaN(juros) || juros < 0)) { setPayErr('Juros inválido.'); return }
+    const { data: upd, error } = await supabase.from('financial_transactions').update({
+      status: 'pago',
+      pagamento_at: p.pagamento_at || todayStr(),
+      juros: juros || 0,
+      bank_account_id: p.bank_account_id || null,
+      forma_pagamento: p.forma_pagamento || p.tx.forma_pagamento || null,
+    }).eq('id', p.tx.id).select().single()
+    if (error) { setPayErr('Erro: ' + error.message); return }
+    if (upd) setTransactions(prev => prev.map(t => t.id === upd.id ? upd : t))
+    setPayModal(null)
+  }
+
+  async function saveBank() {
+    const d = bankModal?.data || {}
+    if (!d.nome?.trim()) return
+    setSavingBank(true)
+    const payload = {
+      instancia: instance,
+      nome: d.nome.trim(),
+      banco: d.banco?.trim() || null,
+      tipo: d.tipo || 'corrente',
+      saldo_inicial: d.saldo_inicial !== '' && d.saldo_inicial != null ? parseFloat(d.saldo_inicial) : 0,
+      ativo: d.ativo !== false,
+    }
+    if (bankModal.mode === 'edit') {
+      const { data: upd } = await supabase.from('bank_accounts').update(payload).eq('id', d.id).select().single()
+      if (upd) setBankAccounts(prev => prev.map(b => b.id === upd.id ? upd : b))
+    } else {
+      const { data: ins } = await supabase.from('bank_accounts').insert(payload).select().single()
+      if (ins) setBankAccounts(prev => [...prev, ins].sort((a, b) => a.nome.localeCompare(b.nome)))
+    }
+    setSavingBank(false); setBankModal(null)
+  }
+
+  function openTransfer() {
+    setTransferModal({ from_account_id: bankAccounts[0]?.id || '', to_account_id: '', to_externo: '', valor: '', data: todayStr(), descricao: '', err: '' })
+  }
+  async function saveTransfer() {
+    const t = transferModal
+    if (!t.from_account_id) { setTransferModal(p => ({ ...p, err: 'Escolha a conta de origem.' })); return }
+    const val = parseFloat(t.valor)
+    if (!(val > 0)) { setTransferModal(p => ({ ...p, err: 'Informe um valor válido.' })); return }
+    const isExterno = t.to_account_id === '__ext__'
+    if (!isExterno && !t.to_account_id) { setTransferModal(p => ({ ...p, err: 'Escolha o destino.' })); return }
+    if (!isExterno && t.to_account_id === t.from_account_id) { setTransferModal(p => ({ ...p, err: 'Origem e destino não podem ser a mesma conta.' })); return }
+    if (isExterno && !t.to_externo.trim()) { setTransferModal(p => ({ ...p, err: 'Informe o destino (pessoa/empresa).' })); return }
+    setSavingTransfer(true)
+    const { data: ins, error } = await supabase.from('bank_transfers').insert({
+      instancia: instance,
+      from_account_id: t.from_account_id,
+      to_account_id: isExterno ? null : t.to_account_id,
+      to_externo: isExterno ? t.to_externo.trim() : null,
+      valor: val, data: t.data, descricao: t.descricao?.trim() || null,
+      created_by: session?.user?.email || null,
+    }).select().single()
+    setSavingTransfer(false)
+    if (error) { setTransferModal(p => ({ ...p, err: 'Erro: ' + error.message })); return }
+    if (ins) setTransfers(prev => [ins, ...prev])
+    setTransferModal(null)
+  }
+
+  async function deleteBank() {
+    if (!confirmDelBank) return
+    await supabase.from('bank_accounts').delete().eq('id', confirmDelBank.id)
+    setBankAccounts(prev => prev.filter(b => b.id !== confirmDelBank.id))
+    setConfirmDelBank(null)
+  }
+
+  async function handleDelete() {
+    if (!confirmDelete) return
+    setDeleting(true)
+    await supabase.from('financial_transactions').delete().eq('id', confirmDelete.id)
+    setTransactions(prev => prev.filter(t => t.id !== confirmDelete.id))
+    setDeleting(false); setConfirmDelete(null)
+  }
+
+  const md = modal?.data || {}
+  const TABS = [
+    { key: 'visaogeral', label: '⬡ Visão Geral' },
+    { key: 'receber', label: 'A Receber' },
+    { key: 'pagar', label: 'A Pagar' },
+    { key: 'fluxo', label: 'Fluxo de Caixa' },
+    { key: 'dre', label: 'DRE' },
+    { key: 'inadimplencia', label: 'Inadimplência' },
+    { key: 'categorias', label: 'Por Categoria' },
+    { key: 'contas', label: 'Contas' },
+  ]
+
+  // ── Access control (depois de todos os hooks, pra não violar Rules of Hooks) ─
+  if (!isAdmin) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16, ...sora }}>
+      <div style={{ width: 64, height: 64, borderRadius: 16, background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Lock size={28} color={C.muted} /></div>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontWeight: 700, fontSize: 17, color: C.navy, marginBottom: 6 }}>Acesso restrito</div>
+        <div style={{ fontSize: 13, color: C.muted }}>Apenas administradores podem acessar o módulo financeiro.</div>
+      </div>
+    </div>
+  )
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <div style={{ padding: '1.5rem', background: C.bg, minHeight: '100vh', ...sora }}>
+      <style>{FONTS}{`
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        .fin-tab:hover { color: ${C.navy} !important }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ marginBottom: 22 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: C.navy, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <DollarSign size={18} color="#fff" />
+          </div>
+          <h1 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: C.navy, letterSpacing: '-0.02em' }}>Financeiro</h1>
+        </div>
+        <div style={{ fontSize: 12, color: C.muted, paddingLeft: 46 }}>
+          {loading ? 'Carregando dados...' : `${transactions.length} lançamentos · ${monthLabelFull(cm)}`}
+        </div>
+      </div>
+
+      {/* Summary cards */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
+        <MetricCard label="A Receber" value={summary.aReceber} icon={ArrowUpCircle} color={C.emerald} bg={C.emeraldDim} loading={loading} delta />
+        <MetricCard label="A Pagar" value={summary.aPagar} icon={ArrowDownCircle} color={C.rose} bg={C.roseDim} loading={loading} delta />
+        <MetricCard label="Recebido" value={summary.recebido} icon={TrendingUp} color="#0891B2" bg="#CFFAFE" loading={loading} delta />
+        <MetricCard label="Saldo do Mês" value={summary.saldo} icon={summary.saldo >= 0 ? TrendingUp : TrendingDown} color={summary.saldo >= 0 ? C.blue : C.rose} bg={summary.saldo >= 0 ? C.blueDim : C.roseDim} loading={loading} />
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${C.border}`, marginBottom: 20, flexWrap: 'wrap' }}>
+        {TABS.map(t => (
+          <button key={t.key} className="fin-tab" onClick={() => setTab(t.key)} style={{ padding: '9px 16px', fontSize: 12.5, fontWeight: tab === t.key ? 700 : 500, background: 'none', border: 'none', cursor: 'pointer', color: tab === t.key ? C.navy : C.muted, borderBottom: tab === t.key ? `2px solid ${C.navy}` : '2px solid transparent', marginBottom: -1, transition: 'all 0.15s', whiteSpace: 'nowrap', ...sora }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Aviso de falha no carregamento — evita a tela "vazia" sem explicação */}
+      {loadError && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, padding: '12px 16px', marginBottom: 18 }}>
+          <AlertTriangle size={18} color={C.rose} style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: '#991B1B' }}>Não foi possível carregar os lançamentos</div>
+            <div style={{ fontSize: 12, color: '#B91C1C', marginTop: 2 }}>Sem conexão ou instabilidade no servidor. Seus dados estão salvos — é só tentar de novo.</div>
+          </div>
+          <button className="nx-btn-primary" onClick={() => setReloadKey(k => k + 1)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', ...sora }}>
+            <RefreshCw size={13} /> Tentar de novo
+          </button>
+        </div>
+      )}
+
+      {/* ── Visão Geral ── */}
+      {tab === 'visaogeral' && (() => {
+        const { months6, ytdRec, ytdDesp, ytdSaldo, topContatosList, inadTotal, catPie } = visaoData
+        const maxBar = Math.max(1, ...months6.map(m => Math.max(m.recPrev, m.despPrev)))
+
+        const VTooltip = ({ active, payload, label }) => {
+          if (!active || !payload?.length) return null
+          return (
+            <div style={{ background: C.navy, borderRadius: 10, padding: '10px 14px', boxShadow: '0 8px 30px rgba(0,0,0,0.25)', ...sora }}>
+              <div style={{ fontSize: 10, color: C.muted, marginBottom: 6 }}>{label}</div>
+              {payload.map((p, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#fff', marginBottom: 2 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: p.color || p.fill }} />
+                  <span style={{ color: '#CBD5E1', minWidth: 60 }}>{p.name}</span>
+                  <span style={{ ...mono, fontWeight: 600, color: p.color || p.fill }}>{fmtBRL(p.value)}</span>
+                </div>
+              ))}
+            </div>
+          )
+        }
+
+        return (
+          <div>
+            {/* Hero KPI strip */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(175px, 1fr))', gap: 12, marginBottom: 20 }}>
+              {[
+                { label: 'Receita YTD',   value: ytdRec,             color: C.emerald, bg: C.emeraldDim, icon: TrendingUp },
+                { label: 'Despesa YTD',   value: ytdDesp,            color: C.rose,    bg: C.roseDim,    icon: TrendingDown },
+                { label: 'Resultado YTD', value: ytdSaldo,           color: ytdSaldo >= 0 ? C.blue : C.rose, bg: ytdSaldo >= 0 ? C.blueDim : C.roseDim, icon: DollarSign },
+                { label: 'Inadimplência', value: inadTotal,          color: '#D97706', bg: '#FEF3C7', icon: AlertTriangle },
+                { label: 'A receber mês', value: summary.aReceber,   color: C.emerald, bg: C.emeraldDim, icon: ArrowUpCircle },
+                { label: 'A pagar mês',   value: summary.aPagar,     color: C.rose,    bg: C.roseDim,    icon: ArrowDownCircle },
+              ].map(k => (
+                <div key={k.label} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '1.1rem 1.2rem', display: 'flex', alignItems: 'flex-start', gap: 12, overflow: 'hidden', position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: 0, right: 0, width: 60, height: 60, borderRadius: '0 0 0 60px', background: k.bg, opacity: 0.6 }} />
+                  <div style={{ width: 36, height: 36, borderRadius: 9, background: k.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <k.icon size={16} color={k.color} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4, ...sora }}>{k.label}</div>
+                    {loading
+                      ? <div style={{ height: 22, width: 80, background: '#F1F5F9', borderRadius: 6 }} />
+                      : <div style={{ fontSize: 17, fontWeight: 800, color: k.color, lineHeight: 1, ...mono }}>{fmtBRL(k.value)}</div>
+                    }
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Receita vs Despesa — últimos 6 meses */}
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '1.4rem', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 14, color: C.navy, ...sora }}>Receita × Despesa</div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Últimos 6 meses · previsto e realizado</div>
+                </div>
+                <div style={{ display: 'flex', gap: 14, fontSize: 11 }}>
+                  {[{ c: C.emerald, l: 'Receita' }, { c: C.rose, l: 'Despesa' }, { c: C.blue, l: 'Saldo real' }].map(x => (
+                    <span key={x.l} style={{ display: 'flex', alignItems: 'center', gap: 5, color: C.slate }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 2, background: x.c, display: 'inline-block' }} />{x.l}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <ComposedChart data={months6} margin={{ top: 4, right: 12, left: 0, bottom: 0 }} barGap={2} barCategoryGap="30%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: C.muted, fontFamily: '"Sora",sans-serif' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: C.muted, fontFamily: '"DM Mono",monospace' }} axisLine={false} tickLine={false} tickFormatter={v => fmtBRL(v, true)} width={68} />
+                  <Tooltip content={<VTooltip />} />
+                  <Bar dataKey="recPrev"  name="Receita prev."  fill={C.emerald} fillOpacity={0.25} radius={[4,4,0,0]} />
+                  <Bar dataKey="despPrev" name="Despesa prev."  fill={C.rose}    fillOpacity={0.25} radius={[4,4,0,0]} />
+                  <Bar dataKey="recReal"  name="Receita real"   fill={C.emerald} radius={[4,4,0,0]} />
+                  <Bar dataKey="despReal" name="Despesa real"   fill={C.rose}    radius={[4,4,0,0]} />
+                  <Line type="monotone" dataKey="saldo" name="Saldo real" stroke={C.blue} strokeWidth={2.5} dot={{ fill: C.blue, r: 3, strokeWidth: 0 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Categorias pie + Top contatos */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+              {/* Pie categorias */}
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '1.4rem' }}>
+                <div style={{ fontWeight: 800, fontSize: 13, color: C.navy, marginBottom: 4, ...sora }}>Receitas por categoria</div>
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>{monthLabelFull(cm)}</div>
+                {catPie.length === 0
+                  ? <div style={{ textAlign: 'center', padding: '2rem', color: C.muted, fontSize: 13 }}>Sem dados</div>
+                  : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <ResponsiveContainer width={130} height={130}>
+                        <PieChart>
+                          <Pie data={catPie} cx="50%" cy="50%" innerRadius={32} outerRadius={58}
+                            dataKey="value" strokeWidth={0} paddingAngle={2}>
+                            {catPie.map((_, i) => <Cell key={i} fill={_.color} />)}
+                          </Pie>
+                          <Tooltip formatter={(v) => fmtBRL(v)} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {catPie.map((c, i) => {
+                          const total = catPie.reduce((s,x) => s+x.value,0) || 1
+                          return (
+                            <div key={i}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, marginBottom: 3 }}>
+                                <div style={{ width: 8, height: 8, borderRadius: 2, background: c.color, flexShrink: 0 }} />
+                                <span style={{ flex: 1, color: C.slate, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+                                <span style={{ fontWeight: 700, color: C.navy, ...mono, fontSize: 11 }}>{fmtBRL(c.value)}</span>
+                                <span style={{ color: C.muted, fontSize: 10, minWidth: 28, textAlign: 'right' }}>{Math.round(c.value/total*100)}%</span>
+                              </div>
+                              <div style={{ height: 3, background: '#F1F5F9', borderRadius: 4, overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${(c.value/total)*100}%`, background: c.color }} />
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                }
+              </div>
+
+              {/* Top contatos */}
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '1.4rem' }}>
+                <div style={{ fontWeight: 800, fontSize: 13, color: C.navy, marginBottom: 4, ...sora }}>Top pacientes · receita</div>
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>{monthLabelFull(cm)}</div>
+                {topContatosList.length === 0
+                  ? <div style={{ textAlign: 'center', padding: '2rem', color: C.muted, fontSize: 13 }}>Sem dados</div>
+                  : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {topContatosList.map(([nome, val], i) => {
+                        const max = topContatosList[0][1] || 1
+                        const pal = [C.emerald, C.blue, '#7C3AED', '#D97706', '#DC2626']
+                        return (
+                          <div key={nome}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, marginBottom: 4 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ width: 24, height: 24, borderRadius: '50%', background: pal[i] + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: pal[i] }}>{i+1}</div>
+                                <span style={{ fontWeight: 600, color: C.navy }}>{nome}</span>
+                              </div>
+                              <span style={{ fontWeight: 700, color: pal[i], ...mono, fontSize: 12 }}>{fmtBRL(val)}</span>
+                            </div>
+                            <div style={{ height: 5, background: '#F1F5F9', borderRadius: 6, overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${(val/max)*100}%`, background: pal[i], borderRadius: 6, transition: 'width 0.4s' }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                }
+              </div>
+            </div>
+
+            {/* Atalhos rápidos */}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {[
+                { label: '+ Nova receita', tab: 'receber', color: C.emerald, bg: C.emeraldDim },
+                { label: '+ Nova despesa', tab: 'pagar',   color: C.rose,    bg: C.roseDim },
+                { label: 'Fluxo de caixa', tab: 'fluxo',  color: C.blue,    bg: C.blueDim },
+                { label: 'DRE',            tab: 'dre',     color: C.slate,   bg: '#F1F5F9' },
+                { label: 'Inadimplência',  tab: 'inadimplencia', color: '#D97706', bg: '#FEF3C7' },
+              ].map(x => (
+                <button key={x.tab} onClick={() => setTab(x.tab)} style={{ padding: '9px 16px', borderRadius: 10, border: `1px solid ${x.bg}`, background: x.bg, color: x.color, fontWeight: 700, fontSize: 12, cursor: 'pointer', ...sora }}>
+                  {x.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── A Receber / A Pagar ── */}
+      {(tab === 'receber' || tab === 'pagar') && (
+        <>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+            {/* Escopo: mês selecionado vs todas as vencidas (qualquer mês) */}
+            <div style={{ display: 'inline-flex', background: '#F1F5F9', borderRadius: 10, padding: 3, gap: 2 }}>
+              <button onClick={() => setScope('mes')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 600, padding: '6px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: scope === 'mes' ? '#fff' : 'transparent', color: scope === 'mes' ? C.navy : C.muted, boxShadow: scope === 'mes' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none', ...sora }}>
+                Do mês
+              </button>
+              <button onClick={() => setScope('vencidas')} title="Todas as contas vencidas, de qualquer mês" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, padding: '6px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: scope === 'vencidas' ? '#fff' : 'transparent', color: scope === 'vencidas' ? '#B45309' : (overdueCount ? '#B45309' : C.muted), boxShadow: scope === 'vencidas' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none', ...sora }}>
+                <AlertTriangle size={12} /> Vencidas
+                {overdueCount > 0 && <span style={{ fontSize: 10, fontWeight: 800, background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', borderRadius: 20, padding: '0 6px', minWidth: 16, textAlign: 'center' }}>{overdueCount}</span>}
+              </button>
+              <button onClick={() => setScope('periodo')} title="Filtrar por um intervalo de datas específico" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 600, padding: '6px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: scope === 'periodo' ? '#fff' : 'transparent', color: scope === 'periodo' ? C.navy : C.muted, boxShadow: scope === 'periodo' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none', ...sora }}>
+                Período
+              </button>
+            </div>
+            {scope === 'mes' && (
+              <div style={{ position: 'relative' }}>
+                <Calendar size={12} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none' }} />
+                <input type="month" className="nx-input" value={filterMonth} onChange={e => setFilterMonth(e.target.value)} style={{ paddingLeft: 28, fontSize: 13, width: 160, ...sora }} />
+              </div>
+            )}
+            {scope === 'periodo' && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <input type="date" className="nx-input" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} title="De" style={{ fontSize: 13, width: 150, ...sora }} />
+                <span style={{ color: C.muted, fontSize: 12, ...sora }}>até</span>
+                <input type="date" className="nx-input" value={filterTo} onChange={e => setFilterTo(e.target.value)} title="Até" style={{ fontSize: 13, width: 150, ...sora }} />
+              </div>
+            )}
+            {scope !== 'vencidas' && (
+              <select className="nx-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ fontSize: 13, width: 130, ...sora }}>
+                <option value="todos">Todos status</option>
+                <option value="pendente">Pendente</option>
+                <option value="pago">Pago</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+            )}
+            <select className="nx-select" value={filterForma} onChange={e => setFilterForma(e.target.value)} style={{ fontSize: 13, width: 150, ...sora }}>
+              <option value="todos">Todas formas</option>
+              {FORMAS.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+            <div style={{ position: 'relative', flex: 1, minWidth: 160 }}>
+              <Search size={12} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none' }} />
+              <input className="nx-input" placeholder="Buscar descrição ou paciente..." value={filterSearch} onChange={e => setFilterSearch(e.target.value)} style={{ paddingLeft: 28, fontSize: 13, ...sora }} />
+            </div>
+            <button className="nx-btn-primary" onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: 13, ...sora }}>
+              <Plus size={13} /> Novo lançamento
+            </button>
+          </div>
+
+          {/* Barra de baixa em lote — aparece quando há selecionados */}
+          {selected.size > 0 && (() => {
+            const selTxs = transactions.filter(t => selected.has(t.id) && t.status === 'pendente')
+            const total = selTxs.reduce((s, t) => s + (parseFloat(t.valor) || 0), 0)
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: C.navy, color: '#fff', borderRadius: 12, padding: '10px 16px', marginBottom: 12, ...sora }}>
+                <span style={{ fontWeight: 700, fontSize: 13 }}>{selTxs.length} selecionado{selTxs.length > 1 ? 's' : ''}</span>
+                <span style={{ fontSize: 12.5, opacity: 0.85, ...mono }}>{fmtBRL(total)}</span>
+                <div style={{ flex: 1 }} />
+                <button onClick={() => setSelected(new Set())} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', borderRadius: 8, padding: '7px 12px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Limpar</button>
+                <button onClick={handleBulkPay} disabled={!selTxs.length} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: C.emerald, border: 'none', color: '#fff', borderRadius: 8, padding: '7px 14px', fontSize: 12.5, fontWeight: 700, cursor: selTxs.length ? 'pointer' : 'default', opacity: selTxs.length ? 1 : 0.6 }}>
+                  <Check size={14} /> Dar baixa em {selTxs.length}
+                </button>
+              </div>
+            )
+          })()}
+
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem', color: C.muted, gap: 8 }}>
+              <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Carregando...
+            </div>
+          ) : loadError ? null : filteredTx.length === 0 ? (
+            scope === 'vencidas' ? (
+              <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 14, padding: '3rem', textAlign: 'center', color: C.emerald }}>
+                <Check size={28} style={{ opacity: 0.4, marginBottom: 10 }} />
+                <div style={{ fontSize: 14, fontWeight: 600 }}>Nenhuma conta vencida — tudo em dia! 🎉</div>
+              </div>
+            ) : (
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '3rem', textAlign: 'center', color: C.muted }}>
+                <DollarSign size={28} style={{ opacity: 0.15, marginBottom: 10 }} />
+                <div style={{ fontSize: 14 }}>Nenhum lançamento neste período.</div>
+                <button className="nx-btn-ghost" onClick={openNew} style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                  <Plus size={13} /> Criar lançamento
+                </button>
+              </div>
+            )
+          ) : (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
+              {displayItems.map((it, i) => it.type === 'group'
+                ? <GroupRow key={it.key} item={it} catMap={catMap} bankMap={bankMap}
+                    expanded={!!expandedGroups[it.key]} onToggle={() => setExpandedGroups(p => ({ ...p, [it.key]: !p[it.key] }))}
+                    onPaidGroup={handleMarkPaidGroup} onPaid={handleMarkPaid} onEdit={openEdit} onDelete={setConfirmDelete}
+                    showDays={scope === 'vencidas'} last={i === displayItems.length - 1}
+                    selectedSet={selected} onToggleSelect={toggleSelectMany} />
+                : <TxRow key={it.tx.id} tx={it.tx} catMap={catMap} bankMap={bankMap} onPaid={handleMarkPaid} onEdit={openEdit} onDelete={setConfirmDelete} showDays={scope === 'vencidas'} last={i === displayItems.length - 1}
+                    selected={selected.has(it.tx.id)} onToggleSelect={() => toggleSelect(it.tx.id)} />
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Fluxo de Caixa ── */}
+      {tab === 'fluxo' && (
+        <div>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '1.5rem', marginBottom: 20 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: C.navy, marginBottom: 4 }}>Fluxo de Caixa — 10 meses</div>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 20 }}>Receitas vs despesas previstas · linha tracejada = meses futuros</div>
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart data={fluxoData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gradRec" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={C.emerald} stopOpacity={0.18}/>
+                    <stop offset="95%" stopColor={C.emerald} stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="gradDesp" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={C.rose} stopOpacity={0.14}/>
+                    <stop offset="95%" stopColor={C.rose} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: C.muted, fontFamily: '"Sora", sans-serif' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: C.muted, fontFamily: '"DM Mono", monospace' }} axisLine={false} tickLine={false} tickFormatter={v => fmtBRL(v, true)} width={72} />
+                <Tooltip content={<ChartTooltip />} />
+                <Area type="monotone" dataKey="recPrev" stroke={C.emerald} strokeWidth={2} fill="url(#gradRec)" name="Receitas" dot={false} strokeDasharray={(d) => d?.isFuture ? '4 4' : ''} />
+                <Area type="monotone" dataKey="despPrev" stroke={C.rose} strokeWidth={2} fill="url(#gradDesp)" name="Despesas" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Fluxo table */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                <thead>
+                  <tr style={{ background: '#F8FAFC', borderBottom: `1px solid ${C.border}` }}>
+                    {['Mês','Rec. Prevista','Desp. Prevista','Saldo Prev.','Rec. Recebida','Desp. Paga','Saldo Real'].map(h => (
+                      <th key={h} style={{ padding: '10px 14px', textAlign: h==='Mês'?'left':'right', fontWeight: 700, fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap', ...sora }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {fluxoData.map(row => (
+                    <tr key={row.fullMonth} style={{ borderBottom: `1px solid #F8FAFC`, background: row.isCurrent ? C.blueDim : 'transparent' }}>
+                      <td style={{ padding: '9px 14px', fontWeight: row.isCurrent ? 700 : 500, color: row.isCurrent ? C.blue : C.navy, whiteSpace: 'nowrap', ...sora }}>
+                        {row.month}{row.isCurrent && <span style={{ fontSize: 9, background: '#BFDBFE', color: C.blue, borderRadius: 20, padding: '2px 6px', marginLeft: 6, fontWeight: 700 }}>Atual</span>}
+                      </td>
+                      {[
+                        [row.recPrev, C.emerald], [row.despPrev, C.rose], [row.saldoPrev, row.saldoPrev>=0?C.blue:C.rose],
+                        [row.recReal, C.emerald], [row.despReal, C.rose], [row.saldoReal, row.saldoReal>=0?C.blue:C.rose],
+                      ].map(([val, color], i) => (
+                        <td key={i} style={{ padding: '9px 14px', textAlign: 'right', ...mono, fontWeight: 600, color: val == null ? '#CBD5E1' : color, fontSize: 12.5 }}>
+                          {val == null ? '—' : fmtBRL(val)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DRE ── */}
+      {tab === 'dre' && (
+        <div>
+          {/* Year nav + DRE label */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 15, color: C.navy, letterSpacing: '-0.01em' }}>Demonstração do Resultado do Exercício</div>
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Receitas · Despesas · Resultado · Margem</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <NavBtn onClick={() => setDreYear(y => y-1)}><ChevronLeft size={14} /></NavBtn>
+              <span style={{ fontWeight: 700, fontSize: 16, color: C.navy, minWidth: 48, textAlign: 'center', ...mono }}>{dreYear}</span>
+              <NavBtn onClick={() => setDreYear(y => y+1)}><ChevronRight size={14} /></NavBtn>
+            </div>
+          </div>
+
+          {/* DRE bar chart */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '1.5rem', marginBottom: 20 }}>
+            <div style={{ display: 'flex', gap: 20, marginBottom: 16, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, ...sora }}>Receitas {dreYear}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: C.emerald, ...mono }}>{fmtBRL(dreData.totRec)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, ...sora }}>Despesas {dreYear}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: C.rose, ...mono }}>{fmtBRL(dreData.totDesp)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, ...sora }}>Resultado {dreYear}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: dreData.totRes >= 0 ? C.blue : C.rose, ...mono }}>{fmtBRL(dreData.totRes)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4, ...sora }}>Margem {dreYear}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: dreData.totRec > 0 && dreData.totRes >= 0 ? C.blue : C.rose, ...mono }}>
+                  {dreData.totRec > 0 ? ((dreData.totRes/dreData.totRec)*100).toFixed(1)+'%' : '—'}
+                </div>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={240}>
+              <ComposedChart data={dreData.months} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: C.muted, fontFamily: '"Sora", sans-serif' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: C.muted, fontFamily: '"DM Mono", monospace' }} axisLine={false} tickLine={false} tickFormatter={v => fmtBRL(v, true)} width={72} />
+                <Tooltip content={<ChartTooltip />} />
+                <Bar dataKey="rec" fill={C.emerald} name="Receitas" radius={[4,4,0,0]} maxBarSize={28}
+                  fillOpacity={0.85} />
+                <Bar dataKey="desp" fill={C.rose} name="Despesas" radius={[4,4,0,0]} maxBarSize={28}
+                  fillOpacity={0.85} />
+                <Line dataKey="resultado" stroke={C.blue} strokeWidth={2.5} dot={{ r: 3, fill: C.blue, strokeWidth: 0 }} name="Resultado" activeDot={{ r: 5 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* P&L statement */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+            {[
+              { title: 'Receitas por Categoria', data: dreData.catRec, color: C.emerald, total: dreData.totRec },
+              { title: 'Despesas por Categoria', data: dreData.catDesp, color: C.rose, total: dreData.totDesp },
+            ].map(({ title, data, color, total }) => (
+              <div key={title} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontWeight: 700, fontSize: 13, color }}>✦ {title}</span>
+                  <span style={{ fontWeight: 800, fontSize: 13, color, ...mono }}>{fmtBRL(total)}</span>
+                </div>
+                {data.length === 0
+                  ? <div style={{ padding: '1.5rem', textAlign: 'center', color: C.muted, fontSize: 13 }}>Sem dados em {dreYear}</div>
+                  : data.map(([key, val]) => {
+                      const cat = catMap[key]
+                      const p = total > 0 ? (val/total*100) : 0
+                      return (
+                        <div key={key} style={{ padding: '9px 16px', borderBottom: `1px solid #F8FAFC` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: cat?.cor||C.muted, flexShrink: 0 }} />
+                            <span style={{ flex: 1, fontSize: 12, color: C.navy, fontWeight: 500 }}>{cat?.nome||'Sem categoria'}</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color, ...mono }}>{fmtBRL(val)}</span>
+                            <span style={{ fontSize: 10, color: C.muted, minWidth: 36, textAlign: 'right' }}>{p.toFixed(0)}%</span>
+                          </div>
+                          <div style={{ height: 3, background: '#F1F5F9', borderRadius: 2 }}>
+                            <div style={{ height: '100%', width: `${p}%`, background: cat?.cor||color, borderRadius: 2, transition: 'width 0.4s ease' }} />
+                          </div>
+                        </div>
+                      )
+                    })
+                }
+              </div>
+            ))}
+          </div>
+
+          {/* DRE month table */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#F8FAFC', borderBottom: `1px solid ${C.border}` }}>
+                    {['Mês','Receitas','Despesas','Resultado','Margem'].map(h => (
+                      <th key={h} style={{ padding: '10px 16px', textAlign: h==='Mês'?'left':'right', fontWeight: 700, fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', ...sora }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {dreData.months.map((row, i) => {
+                    const m = row.rec>0&&row.rec>0 ? ((row.resultado/row.rec)*100).toFixed(1) : null
+                    const has = row.rec>0||row.desp>0
+                    return (
+                      <tr key={i} style={{ borderBottom: i<11?`1px solid #F8FAFC`:'none', background: row.isCurrent ? C.blueDim : 'transparent' }}>
+                        <td style={{ padding: '9px 16px', fontWeight: row.isCurrent?700:500, color: row.isCurrent?C.blue:C.navy, ...sora }}>
+                          {MONTHS_PT[i]}{row.isCurrent && <span style={{ fontSize: 9, background: '#BFDBFE', color: C.blue, borderRadius: 20, padding: '2px 6px', marginLeft: 6, fontWeight: 700 }}>Atual</span>}
+                        </td>
+                        <td style={{ padding: '9px 16px', textAlign: 'right', ...mono, color: has&&row.rec>0?C.emerald:'#CBD5E1', fontWeight: 600, fontSize: 12.5 }}>{row.rec>0?fmtBRL(row.rec):'—'}</td>
+                        <td style={{ padding: '9px 16px', textAlign: 'right', ...mono, color: has&&row.desp>0?C.rose:'#CBD5E1', fontWeight: 600, fontSize: 12.5 }}>{row.desp>0?fmtBRL(row.desp):'—'}</td>
+                        <td style={{ padding: '9px 16px', textAlign: 'right', ...mono, fontWeight: 700, fontSize: 12.5, color: !has?'#CBD5E1':row.resultado>=0?C.emerald:C.rose }}>{has?fmtBRL(row.resultado):'—'}</td>
+                        <td style={{ padding: '9px 16px', textAlign: 'right', ...mono, fontWeight: 600, fontSize: 12.5, color: m!=null?(parseFloat(m)>=0?C.blue:C.rose):'#CBD5E1' }}>{m!=null?m+'%':'—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: '#F1F5F9', borderTop: `2px solid ${C.border}` }}>
+                    <td style={{ padding: '10px 16px', fontWeight: 800, fontSize: 12.5, color: C.navy, ...sora }}>Total {dreYear}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', ...mono, fontWeight: 800, color: C.emerald, fontSize: 12.5 }}>{fmtBRL(dreData.totRec)}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', ...mono, fontWeight: 800, color: C.rose, fontSize: 12.5 }}>{fmtBRL(dreData.totDesp)}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', ...mono, fontWeight: 800, color: dreData.totRes>=0?C.blue:C.rose, fontSize: 12.5 }}>{fmtBRL(dreData.totRes)}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', ...mono, fontWeight: 700, color: C.muted, fontSize: 12.5 }}>
+                      {dreData.totRec>0 ? ((dreData.totRes/dreData.totRec)*100).toFixed(1)+'%' : '—'}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Inadimplência ── */}
+      {tab === 'inadimplencia' && (
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: C.navy, marginBottom: 4 }}>Aging — Contas a Receber Vencidas</div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 18 }}>Distribuição de inadimplência por tempo de vencimento</div>
+
+          {/* Aging chart */}
+          {agingData.some(b => b.total > 0) && (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '1.5rem', marginBottom: 20 }}>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={agingData.map(b => ({ name: b.label, total: b.total, color: b.color }))} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: C.muted, fontFamily: '"DM Mono", monospace' }} axisLine={false} tickLine={false} tickFormatter={v => fmtBRL(v, true)} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: C.muted, fontFamily: '"Sora", sans-serif' }} axisLine={false} tickLine={false} width={78} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Bar dataKey="total" name="Em atraso" radius={[0,6,6,0]} maxBarSize={32}>
+                    {agingData.map((b, i) => <Cell key={i} fill={b.color} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Aging bucket cards */}
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
+            {agingData.map(b => (
+              <div key={b.key} style={{ background: C.card, border: `1px solid ${b.total>0?b.color+'55':C.border}`, borderRadius: 14, padding: '1.1rem 1.3rem', flex: 1, minWidth: 130 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: b.total>0?b.color:C.border }} />
+                  <span style={{ fontSize: 10, fontWeight: 700, color: b.total>0?b.color:C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', ...sora }}>{b.label}</span>
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: b.total>0?b.color:C.muted, ...mono }}>{fmtBRL(b.total)}</div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 3, ...sora }}>{b.items.length} lançamento(s)</div>
+              </div>
+            ))}
+          </div>
+
+          {agingData.every(b => b.items.length === 0) ? (
+            <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 14, padding: '2.5rem', textAlign: 'center' }}>
+              <Check size={28} color={C.emerald} style={{ marginBottom: 10 }} />
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#065F46', marginBottom: 4 }}>Sem inadimplência</div>
+              <div style={{ fontSize: 13, color: C.emerald }}>Todas as contas a receber estão em dia.</div>
+            </div>
+          ) : (
+            agingData.filter(b => b.items.length > 0).map(b => (
+              <div key={b.key} style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{ width: 12, height: 12, borderRadius: 3, background: b.color }} />
+                  <span style={{ fontWeight: 700, fontSize: 13, color: b.color, ...sora }}>{b.label} — {fmtBRL(b.total)}</span>
+                </div>
+                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
+                  {b.items.map((tx, i) => (
+                    <TxRow key={tx.id} tx={tx} catMap={catMap} bankMap={bankMap} onPaid={handleMarkPaid} onEdit={openEdit} showDays last={i===b.items.length-1} />
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* ── Por Categoria ── */}
+      {tab === 'categorias' && (
+        <div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
+            <input type="month" className="nx-input" value={catPeriod} onChange={e => setCatPeriod(e.target.value)} style={{ fontSize: 13, width: 160, ...sora }} />
+            <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.border}`, flexShrink: 0 }}>
+              {[{ v: 'receita', label: 'Receitas', c: C.emerald }, { v: 'despesa', label: 'Despesas', c: C.rose }].map(opt => (
+                <button key={opt.v} onClick={() => setCatTipo(opt.v)} style={{ padding: '7px 20px', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', background: catTipo===opt.v?opt.c:'#F8FAFC', color: catTipo===opt.v?'#fff':C.muted, transition: 'all 0.15s', ...sora }}>{opt.label}</button>
+              ))}
+            </div>
+          </div>
+
+          {catData.items.length === 0 ? (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '3rem', textAlign: 'center', color: C.muted, fontSize: 14 }}>
+              Nenhum lançamento de {catTipo==='receita'?'receita':'despesa'} em {monthLabelFull(catPeriod)}.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 20, alignItems: 'start' }}>
+              {/* Pie chart */}
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '1.5rem', width: 280 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: C.navy, marginBottom: 2, ...sora }}>Distribuição</div>
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 16, ...sora }}>{monthLabelFull(catPeriod)}</div>
+                <PieChart width={234} height={200}>
+                  <Pie data={catData.pieData} cx={117} cy={100} innerRadius={55} outerRadius={90} paddingAngle={2} dataKey="value">
+                    {catData.pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(val) => [fmtBRL(val), '']} contentStyle={{ background: C.navy, border: 'none', borderRadius: 8, color: '#fff', fontFamily: '"DM Mono", monospace', fontSize: 12 }} />
+                </PieChart>
+                <div style={{ textAlign: 'center', marginTop: 8 }}>
+                  <div style={{ fontSize: 11, color: C.muted, ...sora }}>Total</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: catTipo==='receita'?C.emerald:C.rose, ...mono }}>{fmtBRL(catData.total)}</div>
+                </div>
+              </div>
+
+              {/* Bars list */}
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', padding: '10px 16px', background: '#F8FAFC', borderBottom: `1px solid ${C.border}` }}>
+                  <span style={{ flex: 1, fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', ...sora }}>Categoria</span>
+                  <span style={{ minWidth: 48, textAlign: 'center', fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', ...sora }}>Qtd</span>
+                  <span style={{ minWidth: 120, textAlign: 'right', fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', ...sora }}>Total</span>
+                  <span style={{ minWidth: 56, textAlign: 'right', fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', ...sora }}>%</span>
+                </div>
+                {catData.items.map((item, i) => {
+                  const p = catData.total > 0 ? (item.total/catData.total*100) : 0
+                  const color = catTipo==='receita'?C.emerald:C.rose
+                  const bar = item.cat?.cor || color
+                  return (
+                    <div key={item.key} style={{ padding: '11px 16px', borderBottom: i<catData.items.length-1?`1px solid #F8FAFC`:'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 7 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: bar, flexShrink: 0 }} />
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: C.navy, ...sora }}>{item.cat?.nome||'Sem categoria'}</span>
+                        <span style={{ minWidth: 48, textAlign: 'center', fontSize: 12, color: C.muted }}>{item.count}</span>
+                        <span style={{ minWidth: 120, textAlign: 'right', fontSize: 13, fontWeight: 700, color, ...mono }}>{fmtBRL(item.total)}</span>
+                        <span style={{ minWidth: 56, textAlign: 'right', fontSize: 12, color: C.muted, ...mono }}>{p.toFixed(1)}%</span>
+                      </div>
+                      <div style={{ height: 5, background: '#F1F5F9', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${p}%`, background: bar, borderRadius: 3, transition: 'width 0.5s ease' }} />
+                      </div>
+                    </div>
+                  )
+                })}
+                <div style={{ display: 'flex', alignItems: 'center', padding: '11px 16px', background: '#F8FAFC', borderTop: `2px solid ${C.border}` }}>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: C.navy, ...sora }}>Total</span>
+                  <span style={{ minWidth: 48, textAlign: 'center', fontSize: 12, color: C.muted }}>{catData.txCount}</span>
+                  <span style={{ minWidth: 120, textAlign: 'right', fontSize: 13, fontWeight: 800, color: catTipo==='receita'?C.emerald:C.rose, ...mono }}>{fmtBRL(catData.total)}</span>
+                  <span style={{ minWidth: 56, textAlign: 'right', fontSize: 12, color: C.muted }}>100%</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'contas' && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: C.navy, ...sora }}>Contas bancárias</div>
+              <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2, ...sora }}>Cadastre suas contas pra saber quanto entrou e saiu em cada uma.</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={openTransfer} disabled={bankAccounts.length === 0}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: C.slate, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: bankAccounts.length ? 'pointer' : 'not-allowed', opacity: bankAccounts.length ? 1 : 0.5, ...sora }}>
+                <RefreshCw size={15} /> Transferência
+              </button>
+              <button onClick={() => setBankModal({ mode: 'new', data: { nome: '', banco: '', tipo: 'corrente', saldo_inicial: '', ativo: true } })}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: C.blue, color: '#fff', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...sora }}>
+                <Plus size={15} /> Nova conta
+              </button>
+            </div>
+          </div>
+
+          {bankAccounts.length === 0 ? (
+            <div style={{ background: C.card, border: `1px dashed ${C.border}`, borderRadius: 16, padding: '3rem 2rem', textAlign: 'center', color: C.muted, ...sora }}>
+              <div style={{ fontSize: 34, marginBottom: 8 }}>🏦</div>
+              <div style={{ fontWeight: 700, color: C.slate, fontSize: 14 }}>Nenhuma conta cadastrada</div>
+              <div style={{ fontSize: 12.5, marginTop: 4 }}>Cadastre a primeira conta pra registrar em qual conta cada pagamento entrou ou saiu.</div>
+            </div>
+          ) : (
+            <>
+              <div style={{ background: C.navy, color: '#fff', borderRadius: 16, padding: '1.1rem 1.4rem', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', ...sora }}>
+                <div style={{ fontSize: 12.5, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Saldo total das contas</div>
+                <div style={{ fontSize: 22, fontWeight: 800, ...mono }}>{fmtBRL(bankAccounts.reduce((s, b) => s + (bankBalances[b.id]?.saldo || 0), 0))}</div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+                {bankAccounts.map(b => {
+                  const bal = bankBalances[b.id] || { entradas: 0, saidas: 0, saldo: parseFloat(b.saldo_inicial) || 0 }
+                  return (
+                    <div key={b.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '1.1rem 1.25rem', opacity: b.ativo === false ? 0.6 : 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: C.navy, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', ...sora }}>{b.nome}</div>
+                          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2, ...sora }}>
+                            {b.banco ? b.banco + ' · ' : ''}{TIPO_LABEL[b.tipo] || b.tipo}{b.ativo === false ? ' · inativa' : ''}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                          <button onClick={() => setBankModal({ mode: 'edit', data: { ...b, saldo_inicial: b.saldo_inicial?.toString() ?? '' } })} style={{ width: 28, height: 28, borderRadius: 7, background: C.blueDim, border: '1px solid #BFDBFE', color: C.blue, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Edit2 size={12} /></button>
+                          <button onClick={() => setConfirmDelBank(b)} style={{ width: 28, height: 28, borderRadius: 7, background: '#FFF1F2', border: '1px solid #FECDD3', color: C.rose, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={12} /></button>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: bal.saldo >= 0 ? C.emerald : C.rose, marginTop: 12, ...mono }}>{fmtBRL(bal.saldo)}</div>
+                      <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 11.5, ...sora }}>
+                        <span style={{ color: C.emerald }}>↑ {fmtBRL(bal.entradas)}</span>
+                        <span style={{ color: C.rose }}>↓ {fmtBRL(bal.saidas)}</span>
+                        <span style={{ color: C.muted, marginLeft: 'auto' }}>abertura {fmtBRL(b.saldo_inicial)}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {transfers.length > 0 && (
+                <div style={{ marginTop: 22 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: C.navy, marginBottom: 10, ...sora }}>Transferências recentes</div>
+                  <div className="nx-card" style={{ padding: 0, overflow: 'hidden' }}>
+                    {transfers.slice(0, 20).map((tr, i, arr) => (
+                      <div key={tr.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: i === arr.length - 1 ? 'none' : `1px solid ${C.border}`, fontSize: 13, ...sora }}>
+                        <RefreshCw size={14} style={{ color: C.slate, flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: C.navy, fontWeight: 600, flexWrap: 'wrap' }}>
+                            {bankMap[tr.from_account_id]?.nome || 'Conta'} <ArrowRight size={13} style={{ color: C.muted }} /> {tr.to_account_id ? (bankMap[tr.to_account_id]?.nome || 'Conta') : (tr.to_externo || 'Externo')}
+                          </div>
+                          {tr.descricao && <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{tr.descricao}</div>}
+                        </div>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <div style={{ fontWeight: 700, ...mono }}>{fmtBRL(tr.valor)}</div>
+                          <div style={{ fontSize: 11, color: C.muted }}>{fmtDateBR(tr.data)}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Modal transferência ── */}
+      {transferModal && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(6px)', padding: '1.5rem' }}>
+          <div style={{ background: C.card, borderRadius: 18, width: '100%', maxWidth: 460, boxShadow: '0 25px 60px rgba(0,0,0,0.2)', ...sora }}>
+            <div style={{ padding: '1.25rem 1.5rem', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: C.navy, display: 'flex', alignItems: 'center', gap: 8 }}><RefreshCw size={16} /> Transferência entre contas</div>
+              <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, display: 'flex' }} onClick={() => setTransferModal(null)}><X size={16} /></button>
+            </div>
+            <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={lbl}>De (origem) *</label>
+                <select className="nx-select" value={transferModal.from_account_id} onChange={e => setTransferModal(p => ({ ...p, from_account_id: e.target.value }))}>
+                  <option value="">Selecione...</option>
+                  {bankAccounts.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>Para (destino) *</label>
+                <select className="nx-select" value={transferModal.to_account_id} onChange={e => setTransferModal(p => ({ ...p, to_account_id: e.target.value }))}>
+                  <option value="">Selecione...</option>
+                  {bankAccounts.filter(b => b.id !== transferModal.from_account_id).map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+                  <option value="__ext__">Externo / Pessoa (saída)</option>
+                </select>
+              </div>
+              {transferModal.to_account_id === '__ext__' && (
+                <div>
+                  <label style={lbl}>Destino externo *</label>
+                  <input className="nx-input" placeholder="Ex: João (sócio), Fornecedor X..." value={transferModal.to_externo} onChange={e => setTransferModal(p => ({ ...p, to_externo: e.target.value }))} />
+                </div>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={lbl}>Valor (R$) *</label>
+                  <input className="nx-input" type="number" min="0" step="0.01" placeholder="0,00" value={transferModal.valor} onChange={e => setTransferModal(p => ({ ...p, valor: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={lbl}>Data *</label>
+                  <input className="nx-input" type="date" value={transferModal.data} onChange={e => setTransferModal(p => ({ ...p, data: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Descrição</label>
+                <input className="nx-input" placeholder="Opcional" value={transferModal.descricao} onChange={e => setTransferModal(p => ({ ...p, descricao: e.target.value }))} />
+              </div>
+              <div style={{ fontSize: 11.5, color: C.muted }}>A transferência ajusta o saldo das contas, mas não conta como receita nem despesa (neutra no resultado).</div>
+              {transferModal.err && <div style={{ color: C.rose, fontSize: 12.5 }}>{transferModal.err}</div>}
+            </div>
+            <div style={{ padding: '1rem 1.5rem', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10 }}>
+              <button className="nx-btn-ghost" style={{ flex: 1 }} onClick={() => setTransferModal(null)}>Cancelar</button>
+              <button onClick={saveTransfer} disabled={savingTransfer} style={{ flex: 1, padding: '9px 0', borderRadius: 8, border: 'none', cursor: 'pointer', background: C.blue, color: '#fff', fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                {savingTransfer ? 'Salvando...' : <><RefreshCw size={14} /> Transferir</>}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Modal ── */}
+      {modal && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(6px)', padding: '1.5rem' }}>
+          <div style={{ background: C.card, borderRadius: 18, width: '100%', maxWidth: 520, maxHeight: '92vh', overflow: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,0.2)', ...sora }}>
+            <div style={{ padding: '1.25rem 1.5rem', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>{modal.mode==='edit'?'Editar lançamento':'Novo lançamento'}</div>
+              <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, display: 'flex' }} onClick={() => setModal(null)}><X size={16} /></button>
+            </div>
+            <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+              {/* Tipo */}
+              <div>
+                <label style={lbl}>Tipo</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[{v:'receita',label:'Receita',c:C.emerald},{v:'despesa',label:'Despesa',c:C.rose}].map(opt => (
+                    <button key={opt.v} type="button" onClick={() => setModal(p => ({...p, data:{...p.data,tipo:opt.v,categoria_id:''}}))}
+                      style={{ flex: 1, padding: '9px 0', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none', transition: 'all 0.15s', background: md.tipo===opt.v?opt.c:'#F8FAFC', color: md.tipo===opt.v?'#fff':C.muted }}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Descrição */}
+              <div>
+                <label style={lbl}>Descrição *</label>
+                <input className="nx-input" autoFocus placeholder="Ex: Consulta João, Aluguel..." value={md.descricao||''} onChange={e => setModal(p => ({...p,data:{...p.data,descricao:e.target.value}}))} />
+              </div>
+
+              {/* Valor + Vencimento */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={lbl}>Valor bruto (R$) *</label>
+                  <input className="nx-input" type="number" min="0" step="0.01" placeholder="0,00" value={md.valor||''} onChange={e => setModal(p => ({...p,data:{...p.data,valor:e.target.value}}))} />
+                </div>
+                <div>
+                  <label style={lbl}>Vencimento *</label>
+                  <input className="nx-input" type="date" value={md.vencimento||''} onChange={e => setModal(p => ({...p,data:{...p.data,vencimento:e.target.value}}))} />
+                </div>
+              </div>
+
+              {/* Desconto + Tarifa (reduzem o valor) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={lbl}>Desconto (R$)</label>
+                  <input className="nx-input" type="number" min="0" step="0.01" placeholder="0,00" value={md.desconto||''} onChange={e => setModal(p => ({...p,data:{...p.data,desconto:e.target.value}}))} />
+                </div>
+                <div>
+                  <label style={lbl}>Tarifa (R$)</label>
+                  <input className="nx-input" type="number" min="0" step="0.01" placeholder="0,00" value={md.tarifa||''} onChange={e => setModal(p => ({...p,data:{...p.data,tarifa:e.target.value}}))} />
+                </div>
+              </div>
+              {(() => {
+                const bruto = parseFloat(md.valor)||0, desc = parseFloat(md.desconto)||0, tar = parseFloat(md.tarifa)||0
+                if (!bruto || (!desc && !tar)) return null
+                const liq = bruto - desc - tar
+                return (
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', background: liq>0 ? '#F0FDF4' : '#FFF1F2', border:`1px solid ${liq>0 ? '#BBF7D0' : '#FECDD3'}`, borderRadius:10, padding:'8px 12px', fontSize:12.5, ...sora }}>
+                    <span style={{ color: C.slate }}>Líquido ({md.tipo==='receita'?'a receber':'a pagar'}) = bruto − desconto − tarifa</span>
+                    <strong style={{ color: liq>0 ? C.emerald : C.rose, ...mono }}>{fmtBRL(liq)}</strong>
+                  </div>
+                )
+              })()}
+
+              {/* Categoria */}
+              <div>
+                <label style={lbl}>Categoria</label>
+                <select className="nx-select" value={md.categoria_id||''} onChange={e => {
+                    if (e.target.value === '__new__') { setNewCat({ nome:'', cor: CAT_COLORS[0] }); return }
+                    setModal(p => ({...p,data:{...p.data,categoria_id:e.target.value}}))
+                  }}>
+                  <option value="">Sem categoria</option>
+                  {catsForTipo(md.tipo).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  <option value="__new__">➕ Nova categoria…</option>
+                </select>
+                {newCat && (
+                  <div style={{ marginTop: 8, background:'#F8FAFC', border:`1px solid ${C.border}`, borderRadius:10, padding:'10px 12px', display:'flex', flexDirection:'column', gap:8 }}>
+                    <input className="nx-input" autoFocus placeholder="Nome da categoria (ex: Pilates, Tarifa cartão)" value={newCat.nome}
+                      onChange={e => setNewCat(n => ({...n, nome:e.target.value}))}
+                      onKeyDown={e => { if (e.key==='Enter') { e.preventDefault(); createCategory() } }} />
+                    <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                      {CAT_COLORS.map(c => (
+                        <button key={c} type="button" onClick={() => setNewCat(n => ({...n, cor:c}))}
+                          style={{ width:22, height:22, borderRadius:'50%', background:c, cursor:'pointer', border:'none', outline: newCat.cor===c ? `2px solid ${c}` : '2px solid transparent', outlineOffset:2 }} />
+                      ))}
+                    </div>
+                    <div style={{ display:'flex', gap:8, justifyContent:'space-between', alignItems:'center' }}>
+                      <span style={{ fontSize:10.5, color:C.muted }}>Vai pra {md.tipo==='receita'?'receitas':'despesas'}.</span>
+                      <div style={{ display:'flex', gap:8 }}>
+                        <button type="button" onClick={() => setNewCat(null)} style={{ padding:'6px 12px', borderRadius:8, border:`1px solid ${C.border}`, background:'#fff', color:C.slate, cursor:'pointer', fontSize:12 }}>Cancelar</button>
+                        <button type="button" onClick={createCategory} disabled={!newCat.nome.trim()||savingCat}
+                          style={{ padding:'6px 14px', borderRadius:8, border:'none', background:C.blue, color:'#fff', cursor: newCat.nome.trim()?'pointer':'not-allowed', fontSize:12, fontWeight:700, opacity: newCat.nome.trim()?1:0.5 }}>
+                          {savingCat ? 'Criando…' : 'Criar'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Forma de pagamento */}
+              <div>
+                <label style={lbl}>Forma de pagamento</label>
+                <select className="nx-select" value={md.forma_pagamento||''} onChange={e => setModal(p => ({...p,data:{...p.data,forma_pagamento:e.target.value}}))}>
+                  <option value="">Não informado</option>
+                  {FORMAS.map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </div>
+
+              {/* Paciente + Centro de custo */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={lbl}>Paciente / Contato</label>
+                  <input className="nx-input" placeholder="Nome" value={md.contact_nome||''} onChange={e => setModal(p => ({...p,data:{...p.data,contact_nome:e.target.value}}))} />
+                </div>
+                <div>
+                  <label style={lbl}>Centro de custo</label>
+                  <input className="nx-input" placeholder="Ex: Clínica, Admin" value={md.centro_custo||''} onChange={e => setModal(p => ({...p,data:{...p.data,centro_custo:e.target.value}}))} />
+                </div>
+              </div>
+
+              {/* Status (edit only) */}
+              {modal.mode === 'edit' && (
+                <div>
+                  <label style={lbl}>Status</label>
+                  <select className="nx-select" value={md.status||'pendente'} onChange={e => setModal(p => ({...p,data:{...p.data,status:e.target.value}}))}>
+                    <option value="pendente">Pendente</option>
+                    <option value="pago">Pago</option>
+                    <option value="cancelado">Cancelado</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Parcelas / Recorrência (new only) */}
+              {modal.mode === 'new' && (
+                <div style={{ background: '#F8FAFC', borderRadius: 12, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: md.parcelado?10:0 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: C.slate, flex: 1 }}>Parcelado?</span>
+                      <Toggle on={md.parcelado||false} onChange={v => setModal(p => ({...p,data:{...p.data,parcelado:v,recorrente:v?false:p.data.recorrente}}))} />
+                    </div>
+                    {md.parcelado && (
+                      <div>
+                        <label style={lbl}>Nº de parcelas (2–24)</label>
+                        <input className="nx-input" type="number" min="2" max="24" value={md.num_parcelas||2} onChange={e => setModal(p => ({...p,data:{...p.data,num_parcelas:+e.target.value||2}}))} style={{ width: 100 }} />
+                        <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Serão criados {md.num_parcelas} lançamentos com vencimentos mensais.</div>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: md.recorrente?10:0 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: C.slate, flex: 1 }}>Recorrente?</span>
+                      <Toggle on={md.recorrente||false} onChange={v => setModal(p => ({...p,data:{...p.data,recorrente:v,parcelado:v?false:p.data.parcelado}}))} />
+                    </div>
+                    {md.recorrente && (
+                      <div>
+                        <label style={lbl}>Repetir por</label>
+                        <select className="nx-select" value={md.recorrencia_meses||3} onChange={e => setModal(p => ({...p,data:{...p.data,recorrencia_meses:+e.target.value}}))}>
+                          {[2,3,6,12,24].map(n => <option key={n} value={n}>{n} meses</option>)}
+                        </select>
+                        <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Cria {md.recorrencia_meses||3} cópias mensais idênticas (ex: aluguel).</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Observações */}
+              <div>
+                <label style={lbl}>Observações</label>
+                <textarea className="nx-input" rows={2} placeholder="Informações adicionais (opcional)" value={md.observacoes||''} onChange={e => setModal(p => ({...p,data:{...p.data,observacoes:e.target.value}}))} style={{ resize: 'vertical', fontFamily: 'inherit' }} />
+              </div>
+            </div>
+
+            <div style={{ padding: '1rem 1.5rem', borderTop: `1px solid ${C.border}` }}>
+              {modalErr && <div style={{ background: '#FFF1F2', border: '1px solid #FECDD3', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: C.rose, marginBottom: 12 }}>{modalErr}</div>}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="nx-btn-ghost" style={{ flex: 1 }} onClick={() => setModal(null)}>Cancelar</button>
+                <button className="nx-btn-primary" style={{ flex: 1, justifyContent: 'center', display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={handleSave} disabled={saving}>
+                  {saving ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Salvando...</> : 'Salvar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Confirm delete ── */}
+      {confirmDelete && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, backdropFilter: 'blur(6px)', padding: '1.5rem' }}>
+          <div style={{ background: C.card, borderRadius: 18, width: '100%', maxWidth: 400, boxShadow: '0 25px 60px rgba(0,0,0,0.2)', ...sora }}>
+            <div style={{ padding: '1.25rem 1.5rem', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: C.rose }}>Excluir lançamento</div>
+              <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, display: 'flex' }} onClick={() => setConfirmDelete(null)}><X size={16} /></button>
+            </div>
+            <div style={{ padding: '1.25rem 1.5rem', fontSize: 14, color: C.slate }}>
+              Excluir <strong>"{confirmDelete.descricao}"</strong> de <strong style={{ ...mono }}>{fmtBRL(confirmDelete.valor)}</strong>? Esta ação não pode ser desfeita.
+            </div>
+            <div style={{ padding: '1rem 1.5rem', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10 }}>
+              <button className="nx-btn-ghost" style={{ flex: 1 }} onClick={() => setConfirmDelete(null)}>Cancelar</button>
+              <button onClick={handleDelete} disabled={deleting} style={{ flex: 1, padding: '9px 0', borderRadius: 8, border: 'none', cursor: 'pointer', background: C.rose, color: '#fff', fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                {deleting ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Trash2 size={14} />}
+                {deleting ? 'Excluindo...' : 'Excluir'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Modal de pagamento (data, juros, conta) ── */}
+      {payModal && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(6px)', padding: '1.5rem' }}>
+          <div style={{ background: C.card, borderRadius: 18, width: '100%', maxWidth: 440, boxShadow: '0 25px 60px rgba(0,0,0,0.2)', ...sora }}>
+            <div style={{ padding: '1.25rem 1.5rem', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>{payModal.tx.tipo === 'receita' ? 'Registrar recebimento' : 'Registrar pagamento'}</div>
+              <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, display: 'flex' }} onClick={() => setPayModal(null)}><X size={16} /></button>
+            </div>
+            <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '10px 12px', fontSize: 13, ...sora }}>
+                <div style={{ fontWeight: 700, color: C.navy }}>{payModal.tx.descricao}</div>
+                <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>Vence {fmtDateBR(payModal.tx.vencimento)} · <strong style={{ color: payModal.tx.tipo === 'receita' ? C.emerald : C.rose, ...mono }}>{fmtBRL(payModal.tx.valor)}</strong></div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: payModal.groupTxIds ? '1fr' : '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={lbl}>Data do {payModal.tx.tipo === 'receita' ? 'recebimento' : 'pagamento'} *</label>
+                  <input className="nx-input" type="date" value={payModal.pagamento_at} onChange={e => setPayModal(p => ({ ...p, pagamento_at: e.target.value }))} />
+                </div>
+                {!payModal.groupTxIds && (
+                  <div>
+                    <label style={lbl}>Juros / multa (R$)</label>
+                    <input className="nx-input" type="number" min="0" step="0.01" placeholder="0,00" value={payModal.juros} onChange={e => setPayModal(p => ({ ...p, juros: e.target.value }))} />
+                  </div>
+                )}
+              </div>
+              <div>
+                <label style={lbl}>Conta bancária</label>
+                <select className="nx-select" value={payModal.bank_account_id} onChange={e => setPayModal(p => ({ ...p, bank_account_id: e.target.value }))}>
+                  <option value="">Não informar</option>
+                  {bankAccounts.filter(b => b.ativo !== false).map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+                </select>
+                {bankAccounts.length === 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>Nenhuma conta cadastrada — crie na aba "Contas" pra registrar de onde saiu/entrou.</div>}
+              </div>
+              <div>
+                <label style={lbl}>Forma de pagamento</label>
+                <select className="nx-select" value={payModal.forma_pagamento} onChange={e => setPayModal(p => ({ ...p, forma_pagamento: e.target.value }))}>
+                  <option value="">Não informado</option>
+                  {FORMAS.map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </div>
+              {(parseFloat(payModal.juros) || 0) > 0 && (
+                <div style={{ fontSize: 12.5, color: C.slate, ...sora }}>Total {payModal.tx.tipo === 'receita' ? 'recebido' : 'pago'}: <strong style={{ ...mono }}>{fmtBRL((parseFloat(payModal.tx.valor) || 0) + (parseFloat(payModal.juros) || 0))}</strong></div>
+              )}
+              {payErr && <div style={{ color: C.rose, fontSize: 12.5 }}>{payErr}</div>}
+            </div>
+            <div style={{ padding: '1rem 1.5rem', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10 }}>
+              <button className="nx-btn-ghost" style={{ flex: 1 }} onClick={() => setPayModal(null)}>Cancelar</button>
+              <button onClick={confirmPay} style={{ flex: 1, padding: '9px 0', borderRadius: 8, border: 'none', cursor: 'pointer', background: C.emerald, color: '#fff', fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <Check size={14} /> Confirmar
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Modal de conta bancária ── */}
+      {bankModal && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(6px)', padding: '1.5rem' }}>
+          <div style={{ background: C.card, borderRadius: 18, width: '100%', maxWidth: 440, boxShadow: '0 25px 60px rgba(0,0,0,0.2)', ...sora }}>
+            <div style={{ padding: '1.25rem 1.5rem', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>{bankModal.mode === 'edit' ? 'Editar conta' : 'Nova conta bancária'}</div>
+              <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, display: 'flex' }} onClick={() => setBankModal(null)}><X size={16} /></button>
+            </div>
+            <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={lbl}>Nome da conta *</label>
+                <input className="nx-input" autoFocus placeholder="Ex: Banco do Brasil - CC, Caixa PJ" value={bankModal.data.nome || ''} onChange={e => setBankModal(p => ({ ...p, data: { ...p.data, nome: e.target.value } }))} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={lbl}>Banco</label>
+                  <input className="nx-input" placeholder="Ex: Bradesco" value={bankModal.data.banco || ''} onChange={e => setBankModal(p => ({ ...p, data: { ...p.data, banco: e.target.value } }))} />
+                </div>
+                <div>
+                  <label style={lbl}>Tipo</label>
+                  <select className="nx-select" value={bankModal.data.tipo || 'corrente'} onChange={e => setBankModal(p => ({ ...p, data: { ...p.data, tipo: e.target.value } }))}>
+                    <option value="corrente">Conta corrente</option>
+                    <option value="poupanca">Poupança</option>
+                    <option value="caixa">Caixa</option>
+                    <option value="outro">Outro</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Saldo inicial (R$)</label>
+                <input className="nx-input" type="number" step="0.01" placeholder="0,00" value={bankModal.data.saldo_inicial ?? ''} onChange={e => setBankModal(p => ({ ...p, data: { ...p.data, saldo_inicial: e.target.value } }))} />
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>Saldo que a conta tinha quando você começou a usar aqui. O sistema soma/subtrai os lançamentos pagos a partir dele.</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: C.slate, flex: 1 }}>Conta ativa</span>
+                <Toggle on={bankModal.data.ativo !== false} onChange={v => setBankModal(p => ({ ...p, data: { ...p.data, ativo: v } }))} />
+              </div>
+            </div>
+            <div style={{ padding: '1rem 1.5rem', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10 }}>
+              <button className="nx-btn-ghost" style={{ flex: 1 }} onClick={() => setBankModal(null)}>Cancelar</button>
+              <button onClick={saveBank} disabled={savingBank || !bankModal.data.nome?.trim()} style={{ flex: 1, padding: '9px 0', borderRadius: 8, border: 'none', cursor: 'pointer', background: C.blue, color: '#fff', fontSize: 13, fontWeight: 700, opacity: (savingBank || !bankModal.data.nome?.trim()) ? 0.6 : 1 }}>
+                {savingBank ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Confirmar exclusão de conta ── */}
+      {confirmDelBank && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(6px)', padding: '1.5rem' }}>
+          <div style={{ background: C.card, borderRadius: 18, width: '100%', maxWidth: 400, boxShadow: '0 25px 60px rgba(0,0,0,0.2)', ...sora }}>
+            <div style={{ padding: '1.25rem 1.5rem', borderBottom: `1px solid ${C.border}`, fontWeight: 700, fontSize: 15, color: C.navy }}>Excluir conta</div>
+            <div style={{ padding: '1.25rem 1.5rem', fontSize: 14, color: C.slate }}>
+              Excluir a conta <strong>"{confirmDelBank.nome}"</strong>? Os lançamentos já pagos nela continuam existindo, mas ficam sem conta vinculada.
+            </div>
+            <div style={{ padding: '1rem 1.5rem', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10 }}>
+              <button className="nx-btn-ghost" style={{ flex: 1 }} onClick={() => setConfirmDelBank(null)}>Cancelar</button>
+              <button onClick={deleteBank} style={{ flex: 1, padding: '9px 0', borderRadius: 8, border: 'none', cursor: 'pointer', background: C.rose, color: '#fff', fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <Trash2 size={14} /> Excluir
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect x="2" y="2" width="96" height="96" rx="22" fill="#2563EB"/>
+  <text x="50" y="54" text-anchor="middle" dominant-baseline="central"
+        font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+        font-size="64" font-weight="800" fill="#ffffff" letter-spacing="-2">M</text>
+</svg>
