@@ -97,26 +97,66 @@ Dependem de o banco saber quem está chamando (ver "Decisão pendente").
 - Nenhum bucket de storage criado. Quando criarem para anexos de prontuário,
   tem que nascer privado.
 
-## Decisão pendente — identidade por requisição
+## Decisão tomada — Supabase Auth
 
-Todo item em aberto é o mesmo problema: não existe identidade por requisição.
-Dois caminhos:
-
-**A. Supabase Auth (recomendado).** Login emite JWT de verdade; as policies usam
+Todo item em aberto era o mesmo problema: não existia identidade por requisição.
+A escolha foi **Supabase Auth**: o login emite JWT de verdade e as policies usam
 `auth.uid()` e o `company_id` do usuário — que é para isso que o RLS existe.
-Custo: reescrever login, acesso mestre e sessão única. Migrar usuários é trivial
-enquanto o banco está vazio.
+Feito enquanto o banco estava vazio, quando migrar usuários custava nada.
 
-**B. Token próprio endurecido.** Mantém o login atual, mas o token passa a ser
-emitido pelo servidor e viaja num header lido pelas policies. Preserva acesso
-mestre e sessão única como estão. Custo: menos reescrita de produto, mas é
-autenticação feita à mão — que é exatamente onde moram os bugs desta auditoria.
+### Etapa 1 — identidades (aplicada)
 
-## Pendência operacional
+`20260831_auth_etapa1_identidades.sql`. Cada usuário ganhou identidade em
+`auth.users` com o **mesmo id** de `public.users` (então `auth.uid()` aponta
+direto para o perfil, sem tabela de ligação) e o mesmo hash bcrypt, então as
+senhas continuaram valendo. Helpers `auth_role` / `auth_company_id` /
+`auth_is_adm` / `auth_can_access_company` como base das policies.
 
-A linha `id = 1` em `mensagens_geral` é um canário da auditoria (campos nulos),
-usado para provar a escrita liberada. A remoção foi bloqueada pelo ambiente:
+Verificado: JWT emitido com `sub` = id do perfil; `auth_role` devolve `"adm"`
+com token e `null` sem token.
 
-```sql
-delete from mensagens_geral where id = 1;
-```
+### Etapa 2 — autorização (aplicada)
+
+`20260831_auth_etapa2_autorizacao.sql`. As funções privilegiadas passaram a
+perguntar `auth.uid()` em vez de confiar nos argumentos, e a manter `auth.users`
+em dia (criar usuário cria a identidade, trocar senha troca dos dois lados,
+apagar apaga dos dois). A senha mestre universal foi aposentada: o ADM entra em
+qualquer clínica por permissão.
+
+### Etapa 2b — correção (aplicada)
+
+`20260831_auth_etapa2b_correcao.sql`. A conferência da etapa 2 acusou "anon
+ainda executa create_user? true", e o teste ao vivo confirmou que era real. Duas
+falhas somadas, cada uma sozinha suficiente para abrir o buraco:
+
+1. **Lógica de três valores.** `auth_can_manage_users` devolvia `NULL` para quem
+   não está logado — `false OR (NULL = 'admin' AND …)` é `NULL` — e
+   `IF NOT <null> THEN RAISE` não dispara, porque `NOT NULL` é `NULL`, que não é
+   verdadeiro. A função seguia em frente. `auth_is_adm` escapou porque já tinha
+   `COALESCE`; por isso `mark_company_paid` bloqueava certo e `create_user` não.
+2. **`REVOKE … FROM anon` não tira o privilégio herdado de `PUBLIC`.** Toda
+   função nasce com EXECUTE para `PUBLIC`, e `anon` é membro de `PUBLIC`.
+
+Correção: `COALESCE` em todo predicado de autorização (inclusive
+`auth_can_access_company`, que tinha o mesmo defeito e vai ser a base das
+policies da etapa 3) e `REVOKE … FROM PUBLIC`.
+
+> **Lição de teste:** o probe que descobriu a falha usou o id de um usuário real
+> em `delete_user` e apagou a conta. Alvo real só é seguro depois que a
+> autorização está provada — e era justamente isso que estava sendo verificado.
+> Probes destrutivos vão com UUID inexistente.
+
+### Estado verificado
+
+Com a anon key, as sete funções privilegiadas respondem `permission denied for
+function` — a chamada não chega ao corpo. Com JWT: ADM administra qualquer
+clínica, `admin` só a própria (barrado ao tentar outra), `viewer` não administra
+nada, e nem `admin` nem `viewer` mexem na conta ADM ou na mensalidade. Ciclo
+completo testado: ADM cria usuário → o usuário loga na hora → ADM apaga → a
+identidade some junto, sem órfão.
+
+### Etapa 3 — pendente
+
+Trocar as policies `using (true)` por `auth_can_access_company(company_id)`. É a
+que fecha a leitura livre de prontuário, agenda e financeiro, e a única que pode
+quebrar telas se alguma tabela passar despercebida.
