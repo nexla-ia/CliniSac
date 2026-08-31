@@ -26,9 +26,15 @@ function slugify(name) {
 }
 function generatePassword(base) {
   const chars = 'abcdefghjkmnpqrstuvwxyz23456789'
+  const b = slugify(base).slice(0, 5)
+  // Comprimento adaptativo p/ nunca cair abaixo do mínimo de 8 do banco, e
+  // aleatoriedade criptográfica (Math.random é previsível, então senha gerada
+  // com ele é adivinhável por quem conhece o algoritmo e a hora de criação).
+  const n = Math.max(4, 10 - b.length - 1)
+  const rnd = crypto.getRandomValues(new Uint32Array(n))
   let suffix = ''
-  for (let i = 0; i < 4; i++) suffix += chars[Math.floor(Math.random() * chars.length)]
-  return slugify(base).slice(0, 5) + '@' + suffix
+  for (let i = 0; i < n; i++) suffix += chars[rnd[i] % chars.length]
+  return b + '@' + suffix
 }
 
 const labelStyle = {

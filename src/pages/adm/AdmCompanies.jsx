@@ -21,8 +21,11 @@ function generatePassword(companyName) {
   // Comprimento adaptativo: o banco recusa senha com menos de 8 caracteres,
   // e uma clínica de nome curto deixaria a base curta demais.
   const suffixLen = Math.max(4, 10 - base.length - 1)
+  // Aleatoriedade criptográfica: Math.random é previsível, e senha de usuário
+  // gerada com ele é adivinhável por quem conhece o algoritmo.
+  const rnd = crypto.getRandomValues(new Uint32Array(suffixLen))
   let suffix = ''
-  for (let i = 0; i < suffixLen; i++) suffix += chars[Math.floor(Math.random() * chars.length)]
+  for (let i = 0; i < suffixLen; i++) suffix += chars[rnd[i] % chars.length]
   return base + '@' + suffix
 }
 

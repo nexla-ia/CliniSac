@@ -283,6 +283,12 @@ export default function CompanyPatientDetail() {
     const parcVal = parcelas > 0 && (total - entrada) > 0 ? (total - entrada) / parcelas : 0
     const fmt = v => Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
     const fmtD = d => d ? new Date(d).toLocaleDateString('pt-BR') : '—'
+    // Escapa tudo que vem do banco antes de ir para o HTML da janela de
+    // impressão: um nome de paciente (às vezes vindo do WhatsApp) ou uma nota
+    // com <script>/<img onerror> executaria no popup, que é same-origin e
+    // alcança window.opener — ou seja, a sessão do app.
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => (
+      { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]))
     const w = window.open('', '_blank', 'width=750,height=900')
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Orçamento</title>
       <style>
@@ -300,10 +306,10 @@ export default function CompanyPatientDetail() {
       </style></head><body>
       <h1>Orçamento</h1>
       <div class="sub">
-        Paciente: <strong>${pat?.nome || pat?.numero || '—'}</strong> &nbsp;·&nbsp;
+        Paciente: <strong>${esc(pat?.nome || pat?.numero || '—')}</strong> &nbsp;·&nbsp;
         Data: ${fmtD(orc.created_at)} &nbsp;·&nbsp;
-        Status: ${orc.status}
-        ${orc.created_by ? ' &nbsp;·&nbsp; Por: ' + orc.created_by : ''}
+        Status: ${esc(orc.status)}
+        ${orc.created_by ? ' &nbsp;·&nbsp; Por: ' + esc(orc.created_by) : ''}
       </div>
       <table>
         <thead><tr><th>#</th><th>Procedimento</th><th>Dente</th><th>Faces</th><th style="text-align:right">Valor</th></tr></thead>
@@ -311,9 +317,9 @@ export default function CompanyPatientDetail() {
           ${items.map((it, i) => `
             <tr>
               <td>${i + 1}</td>
-              <td>${it.procedimento || '—'}</td>
-              <td>${it.dente || '—'}</td>
-              <td>${it.faces || '—'}</td>
+              <td>${esc(it.procedimento || '—')}</td>
+              <td>${esc(it.dente || '—')}</td>
+              <td>${esc(it.faces || '—')}</td>
               <td style="text-align:right">${fmt(it.valor)}</td>
             </tr>`).join('')}
         </tbody>
@@ -325,7 +331,7 @@ export default function CompanyPatientDetail() {
         ${entrada > 0 ? `<tr><td style="font-size:11px;color:#666">Entrada</td><td style="text-align:right;font-size:11px;color:#666">${fmt(entrada)}</td></tr>` : ''}
         ${parcelas > 1 ? `<tr><td style="font-size:11px;color:#666">${parcelas}x de</td><td style="text-align:right;font-size:11px;color:#666">${fmt(parcVal)}</td></tr>` : ''}
       </table>
-      ${orc.notes ? `<div style="font-size:12px;color:#555;margin-top:8px"><strong>Obs:</strong> ${orc.notes}</div>` : ''}
+      ${orc.notes ? `<div style="font-size:12px;color:#555;margin-top:8px"><strong>Obs:</strong> ${esc(orc.notes)}</div>` : ''}
       <div class="footer">Documento gerado em ${new Date().toLocaleString('pt-BR')}</div>
       <script>window.onload = () => { window.print() }</script>
       </body></html>`)
