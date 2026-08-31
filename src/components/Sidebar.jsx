@@ -20,7 +20,7 @@ export default function Sidebar({ links, role }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <img src="/lohomed.png" alt="CliniSac" className="sidebar-logo" />
+        <img src="/clinisac-logo.svg" alt="CliniSac" className="sidebar-logo" />
         <div className="sidebar-brand-tag">{role === 'adm' ? 'ADM Global' : 'Painel'}</div>
       </div>
 

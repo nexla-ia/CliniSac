@@ -77,7 +77,7 @@ export default function LoginPage() {
         {/* COLUNA ESQUERDA — branding */}
         <div className="login-left">
           <Link to="/" className="login-brand">
-            <img src="/lohomed.png" alt="CliniSac" className="login-logo" />
+            <img src="/clinisac-logo.svg" alt="CliniSac" className="login-logo" />
             <div className="login-brand-text">
               <small>O SAC inteligente da sua clínica</small>
             </div>
