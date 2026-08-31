@@ -472,8 +472,8 @@ export default function AdmCompanyDetail() {
               <div>
                 <label style={labelStyle}>Perfil de acesso</label>
                 <select className="nx-select" value={editForm.role} onChange={e => setEditForm(p => ({ ...p, role: e.target.value }))}>
-                  <option value="admin">Admin — acesso completo</option>
-                  <option value="viewer">Viewer — somente leitura</option>
+                  <option value="admin">Admin — acesso completo + configurações</option>
+                  <option value="viewer">Operador — acesso ao painel de conversas</option>
                 </select>
               </div>
             </div>
@@ -545,8 +545,8 @@ export default function AdmCompanyDetail() {
               <div>
                 <label style={labelStyle}>Perfil de acesso</label>
                 <select className="nx-select" value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}>
-                  <option value="admin">Admin — acesso completo</option>
-                  <option value="viewer">Viewer — somente leitura</option>
+                  <option value="admin">Admin — acesso completo + configurações</option>
+                  <option value="viewer">Operador — acesso ao painel de conversas</option>
                 </select>
               </div>
             </div>
