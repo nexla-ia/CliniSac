@@ -3,7 +3,6 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { LogOut, KeyRound } from 'lucide-react'
 import ChangePasswordModal from './ChangePasswordModal'
-import BrandMark from './BrandMark'
 import './Sidebar.css'
 
 export default function Sidebar({ links, role }) {
@@ -21,12 +20,7 @@ export default function Sidebar({ links, role }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <BrandMark size={32} />
-          <span style={{ fontFamily: "'Bricolage Grotesque','DM Sans',sans-serif", fontWeight: 800, fontSize: 21, letterSpacing: '-0.02em', lineHeight: 1 }}>
-            <span style={{ color: 'currentColor' }}>Clini</span><span style={{ color: '#12B6A6' }}>Sac</span>
-          </span>
-        </div>
+        <img src="/clinisac-logo.svg" alt="CliniSac" className="sidebar-logo" />
         <div className="sidebar-brand-tag">{role === 'adm' ? 'ADM Global' : 'Painel'}</div>
       </div>
 

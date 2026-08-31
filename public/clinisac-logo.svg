@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 120" role="img" aria-label="CliniSac">
+  <title>CliniSac</title>
+  <defs>
+    <linearGradient id="csMark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#13B7A6"/>
+      <stop offset="1" stop-color="#2C6BEF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Marca: balão de conversa (o SAC) + cruz de saúde (a clínica) -->
+  <g transform="translate(8,12) scale(1.5)">
+    <path d="M17 8 H47 A11 11 0 0 1 58 19 V33 A11 11 0 0 1 47 44 H30 L20 53 V44 H17 A11 11 0 0 1 6 33 V19 A11 11 0 0 1 17 8 Z" fill="url(#csMark)"/>
+    <rect x="28.5" y="14" width="7" height="24" rx="3.5" fill="#fff"/>
+    <rect x="20" y="22.5" width="24" height="7" rx="3.5" fill="#fff"/>
+  </g>
+
+  <!-- Wordmark -->
+  <g font-family="'Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif" font-weight="800" font-size="60">
+    <text x="120" y="79" fill="#0F172A" textLength="130" lengthAdjust="spacingAndGlyphs">Clini</text>
+    <text x="250" y="79" fill="#12B6A6" textLength="104" lengthAdjust="spacingAndGlyphs">Sac</text>
+  </g>
+</svg>
