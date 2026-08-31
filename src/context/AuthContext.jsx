@@ -489,8 +489,17 @@ export function AuthProvider({ children }) {
     const company = db.companies.find(c => c.id === companyId)
     const user = company?.users?.find(u => u.id === userId)
     if (!user) return
-    const { error } = await supabase.from('users').update({ active: !user.active }).eq('id', userId)
-    if (!error) await loadDB()
+    // Vai por RPC porque `active` deixou de ser gravável direto: enquanto essa
+    // coluna estava no GRANT de UPDATE, qualquer usuário logado podia mexer no
+    // próprio registro. Mesma razão de role e email.
+    const { data, error } = await supabase.rpc('set_user_active', {
+      p_user_id: userId,
+      p_active: !user.active,
+    })
+    if (error) return { ok: false, error: error.message }
+    if (!data?.ok) return { ok: false, error: data?.error || 'Não foi possível alterar.' }
+    await loadDB()
+    return { ok: true }
   }
 
   async function toggleCompanyActive(companyId) {

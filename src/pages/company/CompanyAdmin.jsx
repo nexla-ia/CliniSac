@@ -301,7 +301,13 @@ export default function CompanyAdmin() {
   }
 
   async function handleToggleUser(userId, active) {
-    await supabase.from('users').update({ active: !active }).eq('id', userId)
+    // `active` não é mais gravável direto na tabela — passa pela RPC, que
+    // confere permissão, protege a conta ADM e impede autodesativação.
+    const { data, error } = await supabase.rpc('set_user_active', {
+      p_user_id: userId,
+      p_active: !active,
+    })
+    if (error || !data?.ok) return
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, active: !active } : u))
   }
 
@@ -332,12 +338,17 @@ export default function CompanyAdmin() {
   async function handleEditUser() {
     if (!editUserForm.name || !editUserForm.email) { setEditUserErr('Nome e e-mail são obrigatórios.'); return }
     setSaving(true)
-    const { error } = await supabase.from('users').update({
-      name: editUserForm.name,
-      email: editUserForm.email,
-      role: editUserForm.role,
-    }).eq('id', editUserModal.id)
-    if (error) { setSaving(false); setEditUserErr(error.message); return }
+    // Nome/e-mail/perfil vão por RPC: `role` e `email` deixaram de ser
+    // graváveis direto (era por aí que dava para se promover a ADM), e o
+    // e-mail precisa ser trocado junto na identidade de login.
+    const { data: upd, error } = await supabase.rpc('update_user_profile', {
+      p_user_id: editUserModal.id,
+      p_name:    editUserForm.name,
+      p_email:   editUserForm.email,
+      p_role:    editUserForm.role,
+    })
+    if (error)     { setSaving(false); setEditUserErr(error.message); return }
+    if (!upd?.ok)  { setSaving(false); setEditUserErr(upd?.error || 'Não foi possível salvar.'); return }
 
     if (editUserForm.password?.trim()) {
       const { error: pwErr } = await supabase.rpc('update_user_password', {
