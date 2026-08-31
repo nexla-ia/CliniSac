@@ -202,18 +202,18 @@ financeiro, CRM, contatos, métricas, catálogo, administração).
 > afeta zero linhas. Dois "ataques" pareceram ter sucesso até serem refeitos com
 > `Prefer: return=representation`, que devolve as linhas realmente alteradas.
 
-## Em aberto — decisão de produto
+## Resolvido — o papel `viewer` é o Operador
 
-**`viewer` pode escrever dado clínico da própria clínica.** As policies isolam
-por clínica, não por papel (`FOR ALL`). Não é falha de isolamento — o viewer só
-alcança a própria clínica — mas é least-privilege.
+A auditoria apontou que o `viewer` escreve dado clínico da própria clínica (as
+policies isolam por clínica, não por papel). Investigando, as duas telas
+discordavam: o painel do ADM dizia *"Viewer — somente leitura"* e o da clínica
+dizia *"Operador — acesso ao painel de conversas"*.
 
-Não foi fechado porque as duas telas discordam sobre o que esse papel é: o
-painel do ADM chama de *"Viewer — somente leitura"* e o da clínica chama de
-*"Operador — acesso ao painel de conversas"*. O app não bloqueia nenhuma ação
-de viewer no painel, então o banco está batendo com o comportamento real.
-Torná-lo read-only quebraria o atendimento se "Operador" for a intenção.
-Decidir o que o papel significa, e então alinhar rótulo, app e policy.
+Decidido: **`viewer` é o Operador, o usuário comum da clínica** — é ele quem
+atende as conversas, então precisa escrever. O comportamento do banco está
+correto; o rótulo do painel do ADM é que estava errado, e foi alinhado.
+
+O isolamento continua sendo por clínica: o operador não alcança nenhuma outra.
 
 ## Também em aberto
 
