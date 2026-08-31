@@ -18,8 +18,11 @@ function slugify(name) {
 function generatePassword(companyName) {
   const base = slugify(companyName).slice(0, 6) || 'nexla'
   const chars = 'abcdefghjkmnpqrstuvwxyz23456789'
+  // Comprimento adaptativo: o banco recusa senha com menos de 8 caracteres,
+  // e uma clínica de nome curto deixaria a base curta demais.
+  const suffixLen = Math.max(4, 10 - base.length - 1)
   let suffix = ''
-  for (let i = 0; i < 4; i++) suffix += chars[Math.floor(Math.random() * chars.length)]
+  for (let i = 0; i < suffixLen; i++) suffix += chars[Math.floor(Math.random() * chars.length)]
   return base + '@' + suffix
 }
 

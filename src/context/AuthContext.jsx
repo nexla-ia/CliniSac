@@ -96,6 +96,27 @@ export function AuthProvider({ children }) {
     else localStorage.removeItem(SESSION_KEY)
   }, [session])
 
+  // A sessão da tela não pode sobreviver ao JWT. Se o token do Supabase
+  // expirou, foi revogado ou o usuário saiu em outra aba, a interface
+  // mostraria alguém logado enquanto toda consulta falha por falta de
+  // autorização — então a sessão local cai junto.
+  useEffect(() => {
+    let alive = true
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (alive && !data?.session) setSession(null)
+    })
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') setSession(null)
+    })
+
+    return () => {
+      alive = false
+      try { sub?.subscription?.unsubscribe() } catch {}
+    }
+  }, [])
+
   const loadDB = useCallback(async () => {
     setDbLoading(true)
     setDbError(null)
@@ -200,41 +221,64 @@ export function AuthProvider({ children }) {
 
   async function login(email, password, mode, opts = {}) {
     const force = !!opts.force  // "sou eu": desconecta a outra sessão e entra
-    const { data, error } = await supabase.rpc('login_user', {
-      p_email: email,
-      p_password: password,
+
+    // Autenticação pelo Supabase Auth. A partir daqui toda requisição leva um
+    // JWT assinado, e o banco consegue autorizar por auth.uid() em vez de
+    // confiar nos argumentos que o cliente manda.
+    const { data: auth, error: authError } = await supabase.auth.signInWithPassword({
+      email: (email || '').trim().toLowerCase(),
+      password,
     })
 
-    if (error) {
-      return { ok: false, error: 'Erro ao conectar com o servidor. Tente novamente.' }
-    }
-
-    if (!data?.length) {
-      // Acesso mestre: e-mail mestre + senha mestre → lista de empresas pra
-      // escolher qual acessar (RPC devolve vazio se credencial não bater).
-      if (mode !== 'adm') {
-        try {
-          const { data: comps } = await supabase.rpc('master_list_companies', {
-            p_email: email, p_password: password,
-          })
-          if (comps?.length) {
-            return { ok: true, master: true, companies: comps, masterEmail: email }
-          }
-        } catch {}
+    if (authError || !auth?.user) {
+      const msg = String(authError?.message || '')
+      if (/network|fetch/i.test(msg)) {
+        return { ok: false, error: 'Erro ao conectar com o servidor. Tente novamente.' }
       }
       return { ok: false, error: 'E-mail ou senha incorretos.' }
     }
 
-    const user = data[0]
+    // Perfil: papel, empresa e situação. Mesma chave do auth.users, então
+    // basta buscar pelo id da identidade.
+    const { data: user, error: profError } = await supabase
+      .from('users')
+      .select('id,name,email,role,active,company_id')
+      .eq('id', auth.user.id)
+      .maybeSingle()
+
+    if (profError || !user) {
+      await supabase.auth.signOut()
+      return { ok: false, error: 'Conta sem perfil configurado. Fale com o administrador.' }
+    }
+
+    if (!user.active) {
+      await supabase.auth.signOut()
+      return { ok: false, error: 'Conta desativada. Contate o administrador.' }
+    }
 
     if (mode === 'adm') {
-      if (user.role !== 'adm') return { ok: false, error: 'Credenciais ADM inválidas.' }
-      setSession({ role: 'adm', user: { name: user.name, email: user.email } })
+      if (user.role !== 'adm') {
+        await supabase.auth.signOut()
+        return { ok: false, error: 'Credenciais ADM inválidas.' }
+      }
+      setSession({ role: 'adm', user: { id: user.id, name: user.name, email: user.email } })
       return { ok: true }
     }
 
-    if (user.role === 'adm' || !user.company_id) {
-      return { ok: false, error: 'E-mail ou senha incorretos.' }
+    // ADM entrando pela aba Empresa: escolhe em qual clínica quer entrar.
+    // Isso substitui a antiga senha mestre — o acesso vem da permissão de
+    // ADM, não de uma senha que abria qualquer conta.
+    if (user.role === 'adm') {
+      const { data: comps } = await supabase
+        .from('companies')
+        .select('id,name,instance,plan,active')
+        .order('name')
+      return { ok: true, master: true, companies: comps || [], masterEmail: user.email }
+    }
+
+    if (!user.company_id) {
+      await supabase.auth.signOut()
+      return { ok: false, error: 'Usuário sem clínica vinculada. Contate o administrador.' }
     }
 
     const { data: company, error: companyError } = await supabase
@@ -329,12 +373,16 @@ export function AuthProvider({ children }) {
     return { ok: true }
   }
 
-  function logout() {
+  async function logout() {
     // Solta a sessão no servidor (best-effort) pra liberar a conta na hora.
+    // Precisa acontecer ANTES do signOut: sem JWT, o release não autoriza.
     const s = session
     if (s?.role === 'company' && s?.user?.id && s?.deviceToken && !s?.user?.master) {
-      try { supabase.rpc('release_login_session', { p_user_id: s.user.id, p_token: s.deviceToken }) } catch {}
+      try {
+        await supabase.rpc('release_login_session', { p_user_id: s.user.id, p_token: s.deviceToken })
+      } catch {}
     }
+    try { await supabase.auth.signOut() } catch {}
     setSession(null)
     localStorage.removeItem(SESSION_KEY)
   }
@@ -374,6 +422,9 @@ export function AuthProvider({ children }) {
   }
 
   async function addUser(companyId, userData) {
+    if (!userData.password || userData.password.length < 8) {
+      return { ok: false, error: 'A senha precisa ter pelo menos 8 caracteres.' }
+    }
     const { error } = await supabase.rpc('create_user', {
       p_name: userData.name,
       p_email: userData.email,
@@ -387,13 +438,20 @@ export function AuthProvider({ children }) {
   }
 
   async function updateUser(userId, userData) {
-    const updates = {
-      name: userData.name,
-      email: userData.email,
-      role: userData.role,
+    if (userData.password && userData.password.length < 8) {
+      return { ok: false, error: 'A senha precisa ter pelo menos 8 caracteres.' }
     }
-    const { error } = await supabase.from('users').update(updates).eq('id', userId)
+
+    // Vai por RPC porque o e-mail vive em dois lugares: no perfil e na
+    // identidade de login. Gravar só no perfil deixaria a pessoa sem entrar.
+    const { data, error } = await supabase.rpc('update_user_profile', {
+      p_user_id: userId,
+      p_name:    userData.name,
+      p_email:   userData.email,
+      p_role:    userData.role,
+    })
     if (error) return { ok: false, error: error.message }
+    if (!data?.ok) return { ok: false, error: data?.error || 'Não foi possível salvar.' }
 
     if (userData.password) {
       const { error: pwErr } = await supabase.rpc('update_user_password', {
