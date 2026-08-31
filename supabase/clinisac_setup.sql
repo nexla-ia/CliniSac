@@ -4775,41 +4775,7 @@ ALTER TABLE public.prontuario_attachments ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "allow_all_prontuario_attachments"
   ON public.prontuario_attachments FOR ALL USING (true) WITH CHECK (true);
 
--- Bucket de storage para arquivos do prontuário
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES (
-  'prontuario',
-  'prontuario',
-  true,
-  20971520, -- 20MB max por arquivo
-  ARRAY[
-    'image/jpeg','image/png','image/webp','image/gif','image/heic',
-    'application/pdf',
-    'video/mp4','video/quicktime',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  ]
-) ON CONFLICT (id) DO NOTHING;
-
--- Política de storage: acesso público para leitura, qualquer um pode fazer upload (auth via DB)
-DO $$ BEGIN
-  CREATE POLICY "prontuario_public_read"
-    ON storage.objects FOR SELECT USING (bucket_id = 'prontuario');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "prontuario_upload"
-    ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'prontuario');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "prontuario_delete"
-    ON storage.objects FOR DELETE USING (bucket_id = 'prontuario');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
+-- [bloco de Storage/prontuário removido do setup — criar o bucket pelo painel Storage depois]
 
 -- ── 20260615_conversation_reads.sql ─────────────────────────────────────────────────────────
 
@@ -6349,12 +6315,7 @@ CREATE TRIGGER fin_sync_appt
   AFTER INSERT OR UPDATE OF price, status, payment_status, paid_at ON public.appointments
   FOR EACH ROW EXECUTE FUNCTION public.fin_sync_on_appointment();
 
--- Foreign keys dos vínculos de plano (integridade + permite embeds no futuro)
-DO $$ BEGIN
-  ALTER TABLE public.appointments
-    ADD CONSTRAINT appointments_treatment_plan_id_fkey
-    FOREIGN KEY (treatment_plan_id) REFERENCES public.treatment_plans(id) ON DELETE SET NULL;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- [FK treatment_plan movido pro fim do script]
 
 -- ═══════════ delta: 20260713_treatment_plans.sql ═══════════
 
@@ -7522,6 +7483,8 @@ ALTER TABLE public.mensagens_geral
 
 -- ═══════════ delta: 20260727_api_grupos_lista.sql ═══════════
 
+DROP FUNCTION IF EXISTS public.api_grupos_lista(text);
+
 -- ==============================================================
 -- Grupos — RPC que devolve a lista de grupos já agregada no servidor
 --
@@ -8547,3 +8510,11 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.set_message_reaction(text, text, text) TO anon, authenticated, service_role;
+
+-- ═══ FK adiado (após todas as tabelas existirem) ═══
+-- Foreign keys dos vínculos de plano (integridade + permite embeds no futuro)
+DO $$ BEGIN
+  ALTER TABLE public.appointments
+    ADD CONSTRAINT appointments_treatment_plan_id_fkey
+    FOREIGN KEY (treatment_plan_id) REFERENCES public.treatment_plans(id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
