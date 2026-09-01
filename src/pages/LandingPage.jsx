@@ -17,14 +17,14 @@ const Star = () => (
 
 const solutions = [
   'Caixa unificada: WhatsApp e Instagram na mesma tela',
-  'IA que responde, agenda e lembra o paciente sozinha',
+  'IA que responde e qualifica o lead na hora, 24/7',
   'Agenda, prontuário e financeiro conversando de ponta a ponta',
   'Funil de vendas que cobra o follow-up no dia certo',
 ]
 
 const steps = [
   { n: '1', title: 'Conecte o WhatsApp da clínica', desc: 'A gente configura junto com você. O número continua o mesmo — a IA entra em cena no mesmo dia.' },
-  { n: '2', title: 'A IA atende, agenda e lembra', desc: 'Paciente recebe resposta na hora, o horário entra direto na agenda e o lembrete sai sozinho.' },
+  { n: '2', title: 'A IA atende e organiza', desc: 'Paciente recebe resposta na hora, o lead entra no funil e a recepção assume pra marcar — com lembrete automático depois de agendado.' },
   { n: '3', title: 'Você acompanha tudo no painel', desc: 'Conversas, funil, agenda, financeiro e métricas num lugar só — com visão do que a IA fez.' },
 ]
 
@@ -68,8 +68,8 @@ export default function LandingPage() {
       <header className="lp-wrap lp-hero">
         <div className="lp-hero-copy">
           <span className="lp-pill"><span className="lp-pulse" />O SAC inteligente da sua clínica</span>
-          <h1>A recepção que atende de madrugada — e <span className="serif hot">marca a consulta sozinha</span>.</h1>
-          <p className="lp-hero-sub">WhatsApp com IA, agenda, CRM, prontuário e financeiro num painel só. A equipe assume quando quiser; o resto o CliniSac cuida.</p>
+          <h1>Nenhum paciente sem resposta — <span className="serif hot">nem às 3 da manhã</span>.</h1>
+          <p className="lp-hero-sub">A IA atende o primeiro contato na hora e entende o que o paciente precisa; sua equipe assume pra marcar. WhatsApp, agenda, CRM, prontuário e financeiro num painel só.</p>
           <div className="lp-hero-ctas">
             <a href={waUrl} target="_blank" rel="noreferrer" className="lp-btn lp-btn-primary lp-btn-lg">Testar 14 dias grátis</a>
             <a href="#como-funciona" className="lp-btn lp-btn-ghost lp-btn-lg">Ver como funciona</a>
@@ -130,17 +130,17 @@ export default function LandingPage() {
                 <div className="lp-m-body">
                   <span className="lp-m-day">Hoje</span>
                   <div className="lp-m-bubble lp-m-in">Oi! Queria saber se tem horário pra avaliação amanhã</div>
-                  <div className="lp-m-bubble lp-m-out"><span className="lp-m-who">IA · CliniSac</span>Oi, Ana! Amanhã tenho 9h40 ou 15h20 com a Dra. Camila. Qual prefere?</div>
-                  <div className="lp-m-bubble lp-m-in">Pode ser 15h20</div>
-                  <div className="lp-m-bubble lp-m-out"><span className="lp-m-who">IA · CliniSac</span>Agendado! Avaliação amanhã às 15h20. Te mando um lembrete 1h antes 🩺</div>
-                  <span className="lp-m-sys"><span className="dot" />Consulta criada na agenda automaticamente</span>
+                  <div className="lp-m-bubble lp-m-out"><span className="lp-m-who">IA · CliniSac</span>Oi, Ana! Temos avaliação amanhã de manhã e à tarde 🙂 Já vou passar pra recepção confirmar o melhor horário pra você.</div>
+                  <div className="lp-m-bubble lp-m-in">Perfeito, obrigada!</div>
+                  <div className="lp-m-bubble lp-m-out"><span className="lp-m-who">IA · CliniSac</span>Combinado! Em instantes a recepção te chama pra fechar 🙌</div>
+                  <span className="lp-m-sys"><span className="dot" />Lead registrado no funil · recepção notificada</span>
                 </div>
               </div>
             </div>
           </div>
           <div className="lp-float">
             <span className="lp-float-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0F0E1B" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg></span>
-            <span><b>+38%</b><span>de agenda cheia no 1º mês</span></span>
+            <span><b>Sempre online</b><span>nenhum paciente sem resposta</span></span>
           </div>
         </div>
       </header>
@@ -184,12 +184,12 @@ export default function LandingPage() {
               <div className="lp-feat-vis v-mint">
                 <div className="lp-panel">
                   <div className="lp-mini-b lp-mini-in">Vocês atendem sábado?</div>
-                  <div className="lp-mini-b lp-mini-out"><small>IA · 02:47</small>Atendemos sim! Sáb. das 8h às 12h. Quer que eu já reserve?</div>
-                  <div className="lp-mini-b lp-mini-in">Quero, pode ser 9h</div>
-                  <div className="lp-mini-b lp-mini-out">Reservado! Sábado às 9h ✅</div>
+                  <div className="lp-mini-b lp-mini-out"><small>IA · 02:47</small>Atendemos sim! Sábado das 8h às 12h 🙂</div>
+                  <div className="lp-mini-b lp-mini-in">Quero marcar avaliação</div>
+                  <div className="lp-mini-b lp-mini-out">Perfeito! Já passo pra recepção confirmar seu horário.</div>
                 </div>
               </div>
-              <div className="lp-feat-body"><h3>Atendimento com IA 24/7</h3><p>A IA responde dúvidas, qualifica o lead e marca consulta — de madrugada, no feriado, sempre. A equipe assume quando quiser.</p></div>
+              <div className="lp-feat-body"><h3>Atendimento com IA 24/7</h3><p>A IA responde dúvidas e qualifica o lead na hora — de madrugada, no feriado, sempre. Sua equipe entra pra fechar o agendamento.</p></div>
             </article>
 
             <article className="lp-feat">
@@ -206,7 +206,7 @@ export default function LandingPage() {
                   ))}
                 </div>
               </div>
-              <div className="lp-feat-body"><h3>Agenda inteligente</h3><p>Agenda por profissional, bloqueios, recorrência e lembretes automáticos que reduzem faltas.</p></div>
+              <div className="lp-feat-body"><h3>Agenda inteligente</h3><p>Agenda por profissional, bloqueios, recorrência, lembretes e confirmação por WhatsApp que reduzem faltas.</p></div>
             </article>
 
             <article className="lp-feat">
