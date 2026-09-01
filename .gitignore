@@ -30,3 +30,6 @@ dist-ssr/
 # OS
 .DS_Store
 Thumbs.db
+
+# Supabase CLI — metadados locais do link (pode ter connection string)
+supabase/.temp/

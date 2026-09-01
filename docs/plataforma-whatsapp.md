@@ -233,6 +233,85 @@ Slots alternam branco/cinza (`idx % 2` no fundo da linha do grid) pra não se mi
 ### 3.6 Gotcha de layout
 Grid items têm `min-width: auto` por padrão → nome grande estica a coluna. Corrigir com `minWidth: 0` na célula e no chip + `title` (tooltip).
 
+### 3.7 Confirmação de presença por ENQUETE (Confirmar/Remarcar)
+**100% automático — sem botão manual.** O motor de lembrete (§3.2,
+`process_appointment_reminders`, cron) manda a enquete no lugar do texto de
+lembrete de sempre — não manda os dois. Dispara sozinho no horário
+configurado em `appointments.reminders` de cada agendamento, com 3 opções
+FIXAS: `Confirmar` / `Remarcar` / `Cancelar` (não é botão nativo do WhatsApp
+— a Evolution não expõe isso de forma confiável; enquete resolve igual).
+Os status `confirmado`/`cancelado`/`faltou` já existiam, não precisou criar
+nada novo.
+
+**Webhook próprio:** `.../webhook/templete-pergunta`, chamado de dentro do
+Postgres (`net.http_post`, mesmo mecanismo do resto do motor de lembrete,
+§3.2). Payload — campos da enquete em si (formato Evolution `sendPoll`) +
+roteamento multi-tenant + contexto pra salvar a resposta:
+```json
+{
+  "number": "5569999145425",       // DDI+DDD+numero, só dígitos
+  "name": "Confirma sua consulta dia 05/09 às 14:00?",  // pergunta (reminder_message ou padrão)
+  "selectableCount": 1,
+  "values": ["Confirmar", "Remarcar", "Cancelar"],
+  "delay": 1200,
+  "instancia": "clinicaolhos",
+  "api_instancia": "...",           // apikey da instância Evolution
+  "session_id": "5569999145425@s.whatsapp.net",
+  "appointment_id": "uuid-do-agendamento",
+  "contact_nome": "Maria Silva",
+  "company": "..."
+}
+```
+
+**Banco:** a enquete é logada em `mensagens_geral` (mesma tabela central,
+sem tabela nova) direto pelo `process_appointment_reminders` (INSERT, já
+com `poll_votes` zerado nas 3 opções). As colunas:
+
+```sql
+ALTER TABLE mensagens_geral ADD COLUMN IF NOT EXISTS poll_name text;
+ALTER TABLE mensagens_geral ADD COLUMN IF NOT EXISTS poll_options jsonb;          -- ["Confirmar","Remarcar","Cancelar"]
+ALTER TABLE mensagens_geral ADD COLUMN IF NOT EXISTS poll_votes jsonb;            -- [{"option":"Confirmar","votes":0}, ...]
+ALTER TABLE mensagens_geral ADD COLUMN IF NOT EXISTS poll_selectable_count integer;
+ALTER TABLE mensagens_geral ADD COLUMN IF NOT EXISTS poll_appointment_id uuid;
+```
+
+(`send_mensagem_geral` também ganhou os mesmos 4 parâmetros opcionais —
+`p_poll_name`/`p_poll_options`/`p_poll_selectable_count`/`p_poll_appointment_id`
+— pra quem precisar logar enquete fora do motor de lembrete no futuro.)
+
+**Quando chega o voto:** o n8n escuta o evento de voto da Evolution
+(`pollUpdates: [{name, voters:[...]}]` — já vem decodificado, sem precisar
+lidar com hash) e faz um `UPDATE mensagens_geral SET poll_votes = ... WHERE
+id_mensagem = ...` (ou grava direto em `poll_options`, o front aceita os
+dois formatos) — usa a **service_role key** (RLS não bloqueia, §0.7/etapa 4
+do hardening). A tela assina `postgres_changes` UPDATE em `mensagens_geral`
+(§0.2) e repinta a barra de progresso na hora — o patch do realtime repassa
+tanto `poll_votes` quanto `poll_options`, porque na prática o voto pode
+chegar em qualquer um dos dois.
+
+**Status muda sozinho — resolvido no banco, sem depender do n8n:** o
+trigger `trg_poll_vote_to_appointment` (`20260901_poll_confirm_appointment
+.sql`) dispara em `AFTER UPDATE OF poll_votes, poll_options ON
+mensagens_geral`. Soma os votos (em qualquer um dos dois formatos) de cada
+opção fixa e:
+- `Confirmar` com voto → `appointments.status = 'confirmado'`
+- `Cancelar` com voto → `appointments.status = 'cancelado'`
+- `Remarcar` **não** muda status sozinho ainda (sem destino óbvio — fica só
+  registrado no voto; dá pra alertar a recepção depois com `api_alert_create`)
+
+Reavalia do zero a cada UPDATE (não incremental), então cobre o paciente
+TROCAR o voto. Só mexe se o status ainda estiver em
+`agendado`/`confirmado`/`cancelado` (não sobrescreve `concluido`/`faltou`,
+que são decisão da clínica). Usa `poll_appointment_id` pra achar a linha
+certa. Como é trigger, roda automaticamente assim que o n8n grava o voto —
+não precisa de mais nenhum node/chamada RPC pra essa parte.
+
+**Render (`CompanyConversations.jsx`):** `pollOf(row)` funde `poll_options` +
+`poll_votes` numa lista `{text, votes}`; a bolha vira um cartão branco
+(mesmo estilo do cartão de contato/localização, §1.6) com pergunta, opções
+em bolinha + barra de progresso (%) e total de votos — sem lista de quem
+votou (WhatsApp também não expõe isso pra quem não é dono da enquete).
+
 ---
 
 ## 4. Sidebar / badges

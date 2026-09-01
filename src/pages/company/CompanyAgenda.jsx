@@ -164,7 +164,6 @@ export default function CompanyAgenda() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const instance = session?.company?.instance
-  const apiInstancia = session?.company?.api_instancia
 
   const [tab, setTab]                 = useState('calendario')
   const [agendas, setAgendas]         = useState([])
@@ -2177,6 +2176,7 @@ export default function CompanyAgenda() {
                   })}
                 </div>
               </div>
+
               <div>
                 <label style={labelStyle}>Observações (opcional)</label>
                 <textarea className="nx-input" rows={2} placeholder="Anotações sobre este agendamento..."

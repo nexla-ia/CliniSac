@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { fetchConversaContatos } from '../../lib/queries'
 import { detectSendError, isN8nInfraNoise } from '../../lib/sendStatus'
-import { MessageSquare, Bot, User, PhoneCall, CheckCircle2, X, Send, Headset, Sparkles, Inbox, UserCheck, Archive, Mic, Square, Trash2, Paperclip, FileText, Image as ImageIcon, Calendar, UserPlus, BookUser, Lock, ArrowRightLeft, ChevronLeft, Pencil, Film, Mail, MailOpen, AlertCircle, Plus, Reply, Search, MapPin, ExternalLink, LocateFixed, Kanban, Check, MoreHorizontal, ChevronRight } from 'lucide-react'
+import { MessageSquare, Bot, User, PhoneCall, CheckCircle2, X, Send, Headset, Sparkles, Inbox, UserCheck, Archive, Mic, Square, Trash2, Paperclip, FileText, Image as ImageIcon, Calendar, UserPlus, BookUser, Lock, ArrowRightLeft, ChevronLeft, Pencil, Film, Mail, MailOpen, AlertCircle, Plus, Reply, Search, MapPin, ExternalLink, LocateFixed, Kanban, Check, MoreHorizontal, ChevronRight, BarChart3 } from 'lucide-react'
 import { useContactTags, TagPicker, TagList, TagFilter, stripPhoneSuffix, buildTagFilter } from '../../components/Tags'
 import QuickMessages from '../../components/QuickMessages'
 import ConfirmModal from '../../components/ConfirmModal'
@@ -102,6 +102,46 @@ function locationOf(loc) {
     address: (loc.address || '').trim(),
     url: `https://www.google.com/maps?q=${lat},${lng}`,
   }
+}
+
+// Extrai o texto de uma opção de enquete — aceita string solta ("Sim") ou o
+// formato cru do Evolution/Baileys ({"optionName":"Sim"}).
+function pollOptionText(o) {
+  if (typeof o === 'string') return o
+  return o?.optionName || o?.text || o?.name || ''
+}
+
+// Lê {option/optionName/name, votes/voters} de um item de poll_votes (ou de
+// um item de poll_options que já venha com o voto embutido, tipo pollUpdates
+// cru do Evolution: {name, voters:[...]}) → [texto, contagem] ou null.
+function pollVoteEntry(v) {
+  const key = pollOptionText(v?.option) || v?.optionName || v?.name
+  if (!key) return null
+  if (Array.isArray(v?.voters)) return [key, v.voters.length]
+  if (v?.votes != null) return [key, Number(v.votes) || 0]
+  return null
+}
+
+// Normaliza os campos de enquete (poll_name/poll_options/poll_votes) numa
+// estrutura pronta pra render: { name, selectableCount, options: [{text, votes}], total }
+function pollOf(row) {
+  const rawOptions = row?.poll_options
+  if (!Array.isArray(rawOptions) || rawOptions.length === 0) return null
+  const options = rawOptions.map(pollOptionText).filter(Boolean)
+  if (options.length === 0) return null
+  // O voto pode vir separado em poll_votes OU embutido direto em cada item
+  // de poll_options (quando o n8n grava o pollUpdates ali) — junta as duas.
+  const votesByOption = {}
+  for (const arr of [row.poll_votes, rawOptions]) {
+    if (!Array.isArray(arr)) continue
+    for (const v of arr) {
+      const entry = pollVoteEntry(v)
+      if (entry) votesByOption[entry[0]] = entry[1]
+    }
+  }
+  const opts = options.map(text => ({ text, votes: votesByOption[text] || 0 }))
+  const total = opts.reduce((s, o) => s + o.votes, 0)
+  return { name: row.poll_name || '', selectableCount: row.poll_selectable_count || 1, options: opts, total }
 }
 
 // Offset "-04:00" / "-03:00" → minutos (-240 / -180)
@@ -1077,6 +1117,10 @@ export default function CompanyConversations() {
                 quoted_text: row.quoted_text || null,
                 contact_card: row.contact_card || null,
                 location: row.location || null,
+                poll_name: row.poll_name || null,
+                poll_options: row.poll_options || null,
+                poll_votes: row.poll_votes || null,
+                poll_selectable_count: row.poll_selectable_count || null,
                 type: getMessageType(row),
                 content: getMessageContent(row),
                 base64: row.base64 || null,
@@ -1103,7 +1147,9 @@ export default function CompanyConversations() {
           }
         }
       )
-      // UPDATEs da conversa aberta: reflete exclusão (apagada) e reação (emoji).
+      // UPDATEs da conversa aberta: reflete exclusão (apagada), reação (emoji)
+      // e voto de enquete — o n8n pode gravar o voto em poll_votes OU direto
+      // em poll_options (com "voters" embutido), então repassa os dois.
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: CONV_TABLE, filter: `instancia=eq.${instance}` },
         (p) => {
@@ -1111,7 +1157,10 @@ export default function CompanyConversations() {
           if (!row || row.idgrupo) return
           if (canonSession(selectedRef.current?.session_id) !== canonSession(row.numero)) return
           setMessages(prev => prev.map(m => m.id === row.id
-            ? { ...m, apagada: !!row.apagada, reaction: row.reaction || null }
+            ? {
+                ...m, apagada: !!row.apagada, reaction: row.reaction || null,
+                poll_votes: row.poll_votes || null, poll_options: row.poll_options || m.poll_options,
+              }
             : m))
         }
       )
@@ -1174,6 +1223,10 @@ export default function CompanyConversations() {
             quoted_text: r.quoted_text || null,
             contact_card: r.contact_card || null,
             location: r.location || null,
+            poll_name: r.poll_name || null,
+            poll_options: r.poll_options || null,
+            poll_votes: r.poll_votes || null,
+            poll_selectable_count: r.poll_selectable_count || null,
             type: getMessageType(r),
             content: getMessageContent(r),
             base64: r.base64 || null,
@@ -1213,6 +1266,10 @@ export default function CompanyConversations() {
         quoted_text: r.quoted_text || null,
         contact_card: r.contact_card || null,
         location: r.location || null,
+        poll_name: r.poll_name || null,
+        poll_options: r.poll_options || null,
+        poll_votes: r.poll_votes || null,
+        poll_selectable_count: r.poll_selectable_count || null,
         type: getMessageType(r),
         content: getMessageContent(r),
         base64: r.base64 || null,
@@ -2139,6 +2196,10 @@ export default function CompanyConversations() {
       quoted_text: r.quoted_text || null,
       contact_card: r.contact_card || null,
       location: r.location || null,
+      poll_name: r.poll_name || null,
+      poll_options: r.poll_options || null,
+      poll_votes: r.poll_votes || null,
+      poll_selectable_count: r.poll_selectable_count || null,
       type: getMessageType(r),
       content: getMessageContent(r),
       base64: r.base64 || null,
@@ -3059,16 +3120,19 @@ export default function CompanyConversations() {
                         const isPlaceholder = !!fileLine
                         const cards = contactCardsOf(msg.contact_card)
                         const loc = locationOf(msg.location)
-                        // "📇 Nome" / "📍 ..." é só rótulo pra lista/preview — dentro da
-                        // bolha o cartão já mostra tudo, então não repete o texto.
+                        const poll = pollOf(msg)
+                        // "📇 Nome" / "📍 ..." / "📊 ..." é só rótulo pra lista/preview — dentro
+                        // da bolha o cartão já mostra tudo, então não repete o texto.
                         const contactLabelOnly = cards.length > 0 && /^📇/.test(rawContent.trim())
                         const locationLabelOnly = !!loc && /^📍/.test(rawContent.trim())
-                        const displayContent = (contactLabelOnly || locationLabelOnly) ? '' : (isPlaceholder ? extraText : rawContent)
+                        const pollLabelOnly = !!poll && /^📊/.test(rawContent.trim())
+                        const displayContent = (contactLabelOnly || locationLabelOnly || pollLabelOnly) ? '' : (isPlaceholder ? extraText : rawContent)
                         const hasOnlyMedia = media && !displayContent
-                        // Só um contato/localização compartilhado (sem texto/mídia) → bolha "nua"
+                        // Só um contato/localização/enquete compartilhado (sem texto/mídia) → bolha "nua"
                         const contactOnly = cards.length > 0 && !displayContent && !media
                         const locationOnly = !!loc && !displayContent && !media && cards.length === 0
-                        const bare = hasOnlyMedia || contactOnly || locationOnly
+                        const pollOnly = !!poll && !displayContent && !media && cards.length === 0 && !loc
+                        const bare = hasOnlyMedia || contactOnly || locationOnly || pollOnly
                         const bubbleStyle = isAtendente
                           ? bare
                             ? { background: 'transparent', padding: 0, boxShadow: 'none', border: 'none' }
@@ -3278,6 +3342,45 @@ export default function CompanyConversations() {
                                   <ExternalLink size={14} /> Abrir no mapa
                                 </div>
                               </a>
+                            )}
+                            {/* Enquete (poll) — confirmação de presença ou qualquer votação */}
+                            {poll && (
+                              <div style={{
+                                background: '#fff', border: '1px solid #E9EDF3', borderRadius: 14,
+                                overflow: 'hidden', minWidth: 248, maxWidth: 300,
+                                marginBottom: displayContent ? 6 : 0,
+                                boxShadow: '0 1px 2px rgba(15,23,42,0.05), 0 8px 20px -8px rgba(15,23,42,0.14)',
+                              }}>
+                                <div style={{ padding: '13px 15px 10px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.09em', color: '#9AA6B6', textTransform: 'uppercase', marginBottom: 5 }}>
+                                    <BarChart3 size={11} /> Enquete
+                                  </div>
+                                  <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', lineHeight: 1.3 }}>{poll.name}</div>
+                                  <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <Check size={11} /> {poll.selectableCount > 1 ? `Selecione até ${poll.selectableCount} opções` : 'Selecione uma opção'}
+                                  </div>
+                                </div>
+                                <div style={{ padding: '2px 15px 13px', display: 'flex', flexDirection: 'column', gap: 11 }}>
+                                  {poll.options.map((o, oi) => {
+                                    const pct = poll.total > 0 ? Math.round((o.votes / poll.total) * 100) : 0
+                                    return (
+                                      <div key={oi}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                          <div style={{ width: 15, height: 15, borderRadius: '50%', border: '1.5px solid #CBD5E1', flexShrink: 0 }} />
+                                          <div style={{ flex: 1, fontSize: 12.5, color: '#1E293B', fontWeight: 500, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.text}</div>
+                                          <div style={{ fontSize: 11.5, color: '#94A3B8', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{o.votes}</div>
+                                        </div>
+                                        <div style={{ height: 4, borderRadius: 2, background: '#F1F5F9', marginTop: 5, overflow: 'hidden' }}>
+                                          <div style={{ height: '100%', width: `${pct}%`, background: '#16A34A', borderRadius: 2, transition: 'width 0.3s' }} />
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                                <div style={{ borderTop: '1px solid #EEF1F6', padding: '8px 15px', fontSize: 11, color: '#94A3B8', textAlign: 'center' }}>
+                                  {poll.total} {poll.total === 1 ? 'voto' : 'votos'}
+                                </div>
+                              </div>
                             )}
                             {isAtendente && editingMsgId === msg.id ? (
                               <div style={{ width: '100%', minWidth: 'min(400px, 78vw)' }}>
