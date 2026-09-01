@@ -34,6 +34,16 @@ const icps = [
   { tag: 'Clínicas médicas', title: 'Várias agendas, uma recepção', desc: 'Prontuário, anamnese e financeiro fechando no mesmo painel do atendimento.' },
 ]
 
+const faqs = [
+  { q: 'Preciso trocar o número de WhatsApp da clínica?', a: 'Não. O seu número continua o mesmo — a IA entra por trás, sem o paciente perceber. A gente conecta junto com você no dia da configuração.' },
+  { q: 'A IA marca a consulta sozinha?', a: 'Hoje a IA atende o primeiro contato, tira dúvidas e entende o que o paciente precisa — 24 horas por dia. Quem confirma o horário na agenda é a sua equipe. Já estamos evoluindo pra IA agendar de ponta a ponta; a confirmação de presença por WhatsApp já é o primeiro passo.' },
+  { q: 'Consigo assumir a conversa quando eu quiser?', a: 'Sim, a qualquer momento. A IA segura o atendimento e avisa a equipe quando é caso de humano — e você assume com um clique, sem o paciente perder o fio.' },
+  { q: 'Funciona com o Instagram também?', a: 'Funciona. WhatsApp e Instagram chegam na mesma caixa unificada, então a equipe responde tudo de um lugar só.' },
+  { q: 'Os dados dos meus pacientes ficam seguros?', a: 'Sim. Cada clínica enxerga apenas os próprios dados, isolados das demais, com práticas de LGPD. Prontuário, conversa e financeiro ficam restritos à sua equipe.' },
+  { q: 'Preciso instalar alguma coisa?', a: 'Não. O CliniSac roda no navegador, no computador ou no celular. A configuração é acompanhada pela nossa equipe — você não fica sozinho.' },
+  { q: 'Como funciona o teste grátis?', a: '14 dias sem cartão de crédito e sem fidelidade. A gente configura junto, você usa com a clínica de verdade e decide depois.' },
+]
+
 const plans = [
   { name: 'Starter', sub: 'Pra clínica começando a organizar o atendimento', feat: false,
     items: ['IA no WhatsApp 24/7', 'Agenda + lembretes automáticos', 'Até 3 profissionais', '5 usuários na equipe'] },
@@ -56,6 +66,7 @@ export default function LandingPage() {
             <a href="#como-funciona">Como funciona</a>
             <a href="#pra-quem">Pra quem é</a>
             <a href="#planos">Planos</a>
+            <a href="#faq">Dúvidas</a>
           </div>
           <div className="lp-nav-actions">
             <Link to="/login" className="lp-nav-enter">Entrar</Link>
@@ -342,6 +353,27 @@ export default function LandingPage() {
                 </div>
                 <a href={waUrl} target="_blank" rel="noreferrer" className={`lp-btn lp-btn-lg ${p.feat ? 'lp-btn-primary' : 'lp-btn-ghost'}`} style={{ justifyContent: 'center' }}>Falar com a gente</a>
               </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="lp-sec lp-sec-soft" id="faq">
+        <div className="lp-wrap">
+          <div className="lp-head center">
+            <span className="lp-kicker">Dúvidas frequentes</span>
+            <h2>O que as clínicas perguntam antes de começar</h2>
+          </div>
+          <div className="lp-faq">
+            {faqs.map((f, i) => (
+              <details className="lp-q" key={i}>
+                <summary>
+                  {f.q}
+                  <span className="lp-q-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2.6" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg></span>
+                </summary>
+                <p className="lp-q-a">{f.a}</p>
+              </details>
             ))}
           </div>
         </div>

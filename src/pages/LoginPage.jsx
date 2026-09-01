@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Eye, EyeOff, Loader2, Sparkles, Calendar, Bot, MessageSquare } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Sparkles, Calendar, Bot, MessageSquare, ArrowLeft } from 'lucide-react'
 import './LoginPage.css'
 
 export default function LoginPage() {
@@ -73,6 +73,9 @@ export default function LoginPage() {
 
   return (
     <div className="login-root">
+      <Link to="/" className="login-back">
+        <ArrowLeft size={15} /> Voltar ao site
+      </Link>
       <div className="login-shell">
         {/* COLUNA ESQUERDA — branding */}
         <div className="login-left">
