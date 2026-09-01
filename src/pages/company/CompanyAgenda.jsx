@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
@@ -731,6 +731,24 @@ export default function CompanyAgenda() {
       setTab('calendario')
     }
     setApptModal(null)
+  }
+
+  // Insere {nome}/{data} na posição do cursor da textarea (em vez do
+  // usuário ter que digitar as chaves na mão).
+  const reminderMsgRef = useRef(null)
+  function insertReminderToken(token) {
+    const el = reminderMsgRef.current
+    const cur = apptModal.reminder_message || ''
+    const start = el ? el.selectionStart : cur.length
+    const end   = el ? el.selectionEnd   : cur.length
+    const next  = cur.slice(0, start) + token + cur.slice(end)
+    setApptModal(p => ({ ...p, reminder_message: next }))
+    requestAnimationFrame(() => {
+      if (!el) return
+      el.focus()
+      const pos = start + token.length
+      el.setSelectionRange(pos, pos)
+    })
   }
 
   // Preview do texto PADRÃO da enquete — espelha exatamente o que
@@ -2044,12 +2062,25 @@ export default function CompanyAgenda() {
                     </div>
                     {apptModal._customMsg ? (
                       <>
-                        <textarea className="nx-input" rows={3} value={apptModal.reminder_message || ''}
+                        <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+                          {[{ token: '{nome}', label: 'Nome do paciente' }, { token: '{data}', label: 'Data/hora' }].map(b => (
+                            <button key={b.token} type="button" title={`Inserir ${b.label}`}
+                              onClick={() => insertReminderToken(b.token)}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                padding: '4px 10px', borderRadius: 6, fontSize: 11.5, fontWeight: 600,
+                                border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8', cursor: 'pointer',
+                              }}>
+                              <Plus size={11} /> {b.token}
+                            </button>
+                          ))}
+                        </div>
+                        <textarea ref={reminderMsgRef} className="nx-input" rows={3} value={apptModal.reminder_message || ''}
                           onChange={e => setApptModal(p => ({ ...p, reminder_message: e.target.value }))}
                           placeholder="Ex: Olá {nome}! Confirma sua sessão em {data}?"
                           style={{ resize: 'vertical', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
                         <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 5 }}>
-                          Use <strong>{'{nome}'}</strong> pro nome do paciente e <strong>{'{data}'}</strong> pra data/hora. Enviada no(s) horário(s) marcados acima.
+                          Clique nos botões acima pra inserir o nome do paciente ou a data/hora sem digitar as chaves. Enviada no(s) horário(s) marcados acima.
                         </div>
                       </>
                     ) : (
