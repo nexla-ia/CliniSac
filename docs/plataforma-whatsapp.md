@@ -233,15 +233,18 @@ Slots alternam branco/cinza (`idx % 2` no fundo da linha do grid) pra não se mi
 ### 3.6 Gotcha de layout
 Grid items têm `min-width: auto` por padrão → nome grande estica a coluna. Corrigir com `minWidth: 0` na célula e no chip + `title` (tooltip).
 
-### 3.7 Confirmação de presença por ENQUETE (Confirmar/Remarcar)
+### 3.7 Confirmação de presença por ENQUETE (Confirmar/Cancelar)
 **100% automático — sem botão manual.** O motor de lembrete (§3.2,
 `process_appointment_reminders`, cron) manda a enquete no lugar do texto de
 lembrete de sempre — não manda os dois. Dispara sozinho no horário
-configurado em `appointments.reminders` de cada agendamento, com 3 opções
-FIXAS: `Confirmar` / `Remarcar` / `Cancelar` (não é botão nativo do WhatsApp
-— a Evolution não expõe isso de forma confiável; enquete resolve igual).
-Os status `confirmado`/`cancelado`/`faltou` já existiam, não precisou criar
-nada novo.
+configurado em `appointments.reminders` de cada agendamento, com 2 opções
+FIXAS: `Confirmar` / `Cancelar` (não é botão nativo do WhatsApp — a Evolution
+não expõe isso de forma confiável; enquete resolve igual). Os status
+`confirmado`/`cancelado`/`faltou` já existiam, não precisou criar nada novo.
+(Chegou a ter uma 3ª opção "Remarcar" numa primeira versão — tirada porque
+não tinha destino óbvio; se quiser reintroduzir, ver o histórico de
+migrations `20260901_poll_confirm_appointment.sql` →
+`20260901_poll_cancel_alert_no_remarcar.sql`.)
 
 **Webhook próprio:** `.../webhook/templete-pergunta`, chamado de dentro do
 Postgres (`net.http_post`, mesmo mecanismo do resto do motor de lembrete,
@@ -252,7 +255,7 @@ roteamento multi-tenant + contexto pra salvar a resposta:
   "number": "5569999145425",       // DDI+DDD+numero, só dígitos
   "name": "Confirma sua consulta dia 05/09 às 14:00?",  // pergunta (reminder_message ou padrão)
   "selectableCount": 1,
-  "values": ["Confirmar", "Remarcar", "Cancelar"],
+  "values": ["Confirmar", "Cancelar"],
   "delay": 1200,
   "instancia": "clinicaolhos",
   "api_instancia": "...",           // apikey da instância Evolution
@@ -265,11 +268,11 @@ roteamento multi-tenant + contexto pra salvar a resposta:
 
 **Banco:** a enquete é logada em `mensagens_geral` (mesma tabela central,
 sem tabela nova) direto pelo `process_appointment_reminders` (INSERT, já
-com `poll_votes` zerado nas 3 opções). As colunas:
+com `poll_votes` zerado nas 2 opções). As colunas:
 
 ```sql
 ALTER TABLE mensagens_geral ADD COLUMN IF NOT EXISTS poll_name text;
-ALTER TABLE mensagens_geral ADD COLUMN IF NOT EXISTS poll_options jsonb;          -- ["Confirmar","Remarcar","Cancelar"]
+ALTER TABLE mensagens_geral ADD COLUMN IF NOT EXISTS poll_options jsonb;          -- ["Confirmar","Cancelar"]
 ALTER TABLE mensagens_geral ADD COLUMN IF NOT EXISTS poll_votes jsonb;            -- [{"option":"Confirmar","votes":0}, ...]
 ALTER TABLE mensagens_geral ADD COLUMN IF NOT EXISTS poll_selectable_count integer;
 ALTER TABLE mensagens_geral ADD COLUMN IF NOT EXISTS poll_appointment_id uuid;
@@ -291,16 +294,21 @@ chegar em qualquer um dos dois.
 
 **Status muda sozinho — resolvido no banco, sem depender do n8n:** o
 trigger `trg_poll_vote_to_appointment` (`20260901_poll_confirm_appointment
-.sql`) dispara em `AFTER UPDATE OF poll_votes, poll_options ON
-mensagens_geral`. Soma os votos (em qualquer um dos dois formatos) de cada
-opção fixa e:
+.sql`, atualizado em `20260901_poll_cancel_alert_no_remarcar.sql`) dispara
+em `AFTER UPDATE OF poll_votes, poll_options ON mensagens_geral`. Soma os
+votos (em qualquer um dos dois formatos) de cada opção fixa e:
 - `Confirmar` com voto → `appointments.status = 'confirmado'`
-- `Cancelar` com voto → `appointments.status = 'cancelado'`
-- `Remarcar` **não** muda status sozinho ainda (sem destino óbvio — fica só
-  registrado no voto; dá pra alertar a recepção depois com `api_alert_create`)
+- `Cancelar` com voto → `appointments.status = 'cancelado'` **+ cria um
+  alerta** em `public.alerts` ("Paciente {nome} cancelou a consulta pela
+  enquete. Por favor, entrar em contato.") — aparece na hora no painel de
+  Avisos (`CompanyAlerts.jsx`, já assina realtime em `alerts`). Só cria o
+  alerta na transição de verdade pra `cancelado` (`status <> 'cancelado'`
+  no WHERE do UPDATE + `RETURNING`/`FOUND`), pra não duplicar se a enquete
+  atualizar de novo com o mesmo resultado.
 
 Reavalia do zero a cada UPDATE (não incremental), então cobre o paciente
-TROCAR o voto. Só mexe se o status ainda estiver em
+TROCAR o voto (inclusive voltar de `cancelado` pra `confirmado`, sem gerar
+alerta novo). Só mexe se o status ainda estiver em
 `agendado`/`confirmado`/`cancelado` (não sobrescreve `concluido`/`faltou`,
 que são decisão da clínica). Usa `poll_appointment_id` pra achar a linha
 certa. Como é trigger, roda automaticamente assim que o n8n grava o voto —
