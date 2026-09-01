@@ -665,16 +665,13 @@ export default function CompanyConversations() {
     }
   }, [contextMenu])
 
-  // Fecha o menu de ações da mensagem (⋯) ao clicar fora
+  // Fecha o menu de ações da mensagem (⋯) ao rolar a conversa (o clique fora
+  // já é tratado pelo overlay invisível renderizado junto com o menu).
   useEffect(() => {
     if (!msgMenu) return
     const close = () => setMsgMenu(null)
-    window.addEventListener('click', close)
     window.addEventListener('scroll', close, true)
-    return () => {
-      window.removeEventListener('click', close)
-      window.removeEventListener('scroll', close, true)
-    }
+    return () => window.removeEventListener('scroll', close, true)
   }, [msgMenu])
 
   // Copia o texto da mensagem (nossa ou do cliente) pra área de transferência
@@ -3871,6 +3868,8 @@ export default function CompanyConversations() {
       , document.body)}
 
       {msgMenu && createPortal(
+        <>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 99997 }} onClick={() => setMsgMenu(null)} />
         <div style={{
           position: 'fixed', left: Math.max(4, msgMenu.x), top: msgMenu.y, zIndex: 99998,
           background: '#fff', border: '1px solid var(--border)',
@@ -3916,6 +3915,7 @@ export default function CompanyConversations() {
             )
           })()}
         </div>
+        </>
       , document.body)}
 
       {saveContactModal && createPortal(
