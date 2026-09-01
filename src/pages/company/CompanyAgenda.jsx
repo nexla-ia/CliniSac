@@ -733,6 +733,23 @@ export default function CompanyAgenda() {
     setApptModal(null)
   }
 
+  // Preview do texto PADRÃO da enquete — espelha exatamente o que
+  // process_appointment_reminders() monta no banco (mesma prioridade:
+  // reminder_message do procedimento > texto padrão com {nome}/{data}).
+  function pollDefaultPreview(appt) {
+    if (!appt?.date || !appt?.time || !appt?.contact_nome) return ''
+    const [, mo, day] = appt.date.split('-')
+    const proc = procedures.find(x => x.id === appt.procedure_id)
+    const tmpl = (proc?.reminder_message || '').trim()
+    if (tmpl) {
+      return tmpl
+        .replace(/\{nome\}/gi, appt.contact_nome || '')
+        .replace(/\{data\}/gi, `${day}/${mo}, ${appt.time}`)
+    }
+    const prof = professionals.find(p => p.id === appt.professional_id)
+    return `Olá ${appt.contact_nome}! 👋 Confirma sua consulta no dia ${day}/${mo} às ${appt.time}${prof ? ` com ${prof.name}` : ''}?`
+  }
+
   // Valor do agendamento: o valor por sessão do profissional manda. Só cai no
   // preço do procedimento (convênio > particular) quando o profissional não
   // tem valor cadastrado no Catálogo.
@@ -2036,8 +2053,19 @@ export default function CompanyAgenda() {
                         </div>
                       </>
                     ) : (
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        Usa o texto padrão da enquete (ou o do procedimento, se estiver configurado).
+                      <div>
+                        <div style={{
+                          fontSize: 12.5, color: 'var(--text-primary)', background: '#F8FAFC',
+                          border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px',
+                          lineHeight: 1.45, whiteSpace: 'pre-wrap',
+                        }}>
+                          {pollDefaultPreview(apptModal) || 'Preencha nome, data e hora pra ver o texto.'}
+                        </div>
+                        <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 5 }}>
+                          {procedures.find(x => x.id === apptModal.procedure_id)?.reminder_message?.trim()
+                            ? 'Texto padrão configurado no procedimento.'
+                            : 'Texto padrão da enquete (nenhuma personalização no procedimento).'}
+                        </div>
                       </div>
                     )}
                   </div>
