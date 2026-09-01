@@ -3504,7 +3504,13 @@ export default function CompanyConversations() {
                         <button
                           onClick={e => {
                             const r = e.currentTarget.getBoundingClientRect()
-                            setMsgMenu({ x: isLeft ? r.left : r.right - 160, y: r.bottom + 4, msg })
+                            const estH = 170 // altura estimada do menu (até 4 itens)
+                            const openUp = r.bottom + estH + 8 > window.innerHeight
+                            setMsgMenu({
+                              x: isLeft ? r.left : r.right - 160,
+                              y: openUp ? Math.max(4, r.top - estH - 4) : r.bottom + 4,
+                              msg,
+                            })
                           }}
                           title="Mais ações"
                           style={{
