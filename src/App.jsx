@@ -2,6 +2,7 @@ import React, { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import LoginPage from './pages/LoginPage'
+import LandingPage from './pages/LandingPage'
 
 // Páginas internas carregadas sob demanda (code-splitting por rota).
 // Mantém a tela de login leve — o resto só baixa quando o usuário navega.
@@ -72,7 +73,7 @@ export default function App() {
       <BrowserRouter>
         <Suspense fallback={<RouteFallback />}>
           <Routes>
-            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
 
             <Route path="/adm" element={<PrivateAdm><AdmLayout /></PrivateAdm>}>
