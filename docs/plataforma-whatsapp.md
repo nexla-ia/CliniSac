@@ -170,6 +170,28 @@ Sem migration extra: os padrão são semeados com `created_at` fixo (2020) pra f
 ### 1.6 Outros (já existiam / reforçados)
 Editar e apagar mensagem (com `id_mensagem`), marcar não-lido, "aguardando paciente", atribuição de atendimento por setor, transferir/puxar conversa, etiquetas.
 
+### 1.7 Status de entrega/leitura (✓ enviado, ✓✓ entregue, ✓✓ azul lido)
+Antes só se sabia que uma mensagem tinha sido "enviada" (existe em `mensagens_geral`) — não se o paciente **recebeu** ou **leu** de verdade. Útil pra lembrete/cobrança: saber se realmente chegou.
+
+```sql
+ALTER TABLE mensagens_geral ADD COLUMN IF NOT EXISTS delivered_at timestamptz;
+ALTER TABLE mensagens_geral ADD COLUMN IF NOT EXISTS read_at timestamptz;
+```
+
+**Quem preenche:** o n8n, escutando `messages.update` da Evolution (dispara toda vez que o status muda). Baileys manda o status como número (`WAMessageStatus`): `0 ERROR`, `1 PENDING`, `2 SERVER_ACK` (enviado), `3 DELIVERY_ACK` (entregue), `4 READ` (lido), `5 PLAYED` (áudio ouvido). Casa pela mesma chave já usada no resto do app — `(id_mensagem, instancia)`, que já tem índice único (§6):
+
+```sql
+-- quando status >= 3
+UPDATE mensagens_geral SET delivered_at = COALESCE(delivered_at, now())
+  WHERE id_mensagem = '<key.id>' AND instancia = '<instancia>';
+-- quando status >= 4
+UPDATE mensagens_geral SET read_at = COALESCE(read_at, now())
+  WHERE id_mensagem = '<key.id>' AND instancia = '<instancia>';
+```
+Sempre com **service_role** (RLS não bloqueia, §0.7/etapa 4).
+
+**Render:** ao lado do horário, só nas mensagens que NÃO são do cliente (`!isCliente`) e que não falharam/foram apagadas. `CheckCheck` cinza = entregue (`delivered_at` setado), `CheckCheck` azul (`#53BDEB`, a cor do WhatsApp) = lido (`read_at` setado), `Check` simples = só enviado. Tooltip mostra o horário exato. Atualiza ao vivo pelo mesmo realtime UPDATE que já existia (apagada/reação/enquete).
+
 ---
 
 ## 2. Grupos — recursos WhatsApp

@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { fetchConversaContatos } from '../../lib/queries'
 import { detectSendError, isN8nInfraNoise } from '../../lib/sendStatus'
-import { MessageSquare, Bot, User, PhoneCall, CheckCircle2, X, Send, Headset, Sparkles, Inbox, UserCheck, Archive, Mic, Square, Trash2, Paperclip, FileText, Image as ImageIcon, Calendar, UserPlus, BookUser, Lock, ArrowRightLeft, ChevronLeft, Pencil, Film, Mail, MailOpen, AlertCircle, Plus, Reply, Search, MapPin, ExternalLink, LocateFixed, Kanban, Check, MoreHorizontal, ChevronRight, BarChart3 } from 'lucide-react'
+import { MessageSquare, Bot, User, PhoneCall, CheckCircle2, X, Send, Headset, Sparkles, Inbox, UserCheck, Archive, Mic, Square, Trash2, Paperclip, FileText, Image as ImageIcon, Calendar, UserPlus, BookUser, Lock, ArrowRightLeft, ChevronLeft, Pencil, Film, Mail, MailOpen, AlertCircle, Plus, Reply, Search, MapPin, ExternalLink, LocateFixed, Kanban, Check, CheckCheck, MoreHorizontal, ChevronRight, BarChart3 } from 'lucide-react'
 import { useContactTags, TagPicker, TagList, TagFilter, stripPhoneSuffix, buildTagFilter } from '../../components/Tags'
 import QuickMessages from '../../components/QuickMessages'
 import ConfirmModal from '../../components/ConfirmModal'
@@ -1121,6 +1121,8 @@ export default function CompanyConversations() {
                 poll_options: row.poll_options || null,
                 poll_votes: row.poll_votes || null,
                 poll_selectable_count: row.poll_selectable_count || null,
+                delivered_at: row.delivered_at || null,
+                read_at: row.read_at || null,
                 type: getMessageType(row),
                 content: getMessageContent(row),
                 base64: row.base64 || null,
@@ -1147,9 +1149,9 @@ export default function CompanyConversations() {
           }
         }
       )
-      // UPDATEs da conversa aberta: reflete exclusão (apagada), reação (emoji)
-      // e voto de enquete — o n8n pode gravar o voto em poll_votes OU direto
-      // em poll_options (com "voters" embutido), então repassa os dois.
+      // UPDATEs da conversa aberta: reflete exclusão (apagada), reação (emoji),
+      // voto de enquete (poll_votes OU poll_options, o n8n pode gravar em
+      // qualquer um dos dois) e status de entrega/leitura (checkmarks).
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: CONV_TABLE, filter: `instancia=eq.${instance}` },
         (p) => {
@@ -1160,6 +1162,7 @@ export default function CompanyConversations() {
             ? {
                 ...m, apagada: !!row.apagada, reaction: row.reaction || null,
                 poll_votes: row.poll_votes || null, poll_options: row.poll_options || m.poll_options,
+                delivered_at: row.delivered_at || null, read_at: row.read_at || null,
               }
             : m))
         }
@@ -1227,6 +1230,8 @@ export default function CompanyConversations() {
             poll_options: r.poll_options || null,
             poll_votes: r.poll_votes || null,
             poll_selectable_count: r.poll_selectable_count || null,
+            delivered_at: r.delivered_at || null,
+            read_at: r.read_at || null,
             type: getMessageType(r),
             content: getMessageContent(r),
             base64: r.base64 || null,
@@ -1270,6 +1275,8 @@ export default function CompanyConversations() {
         poll_options: r.poll_options || null,
         poll_votes: r.poll_votes || null,
         poll_selectable_count: r.poll_selectable_count || null,
+        delivered_at: r.delivered_at || null,
+        read_at: r.read_at || null,
         type: getMessageType(r),
         content: getMessageContent(r),
         base64: r.base64 || null,
@@ -2200,6 +2207,8 @@ export default function CompanyConversations() {
       poll_options: r.poll_options || null,
       poll_votes: r.poll_votes || null,
       poll_selectable_count: r.poll_selectable_count || null,
+      delivered_at: r.delivered_at || null,
+      read_at: r.read_at || null,
       type: getMessageType(r),
       content: getMessageContent(r),
       base64: r.base64 || null,
@@ -3522,6 +3531,18 @@ export default function CompanyConversations() {
                         <div className="msg-time" style={{ textAlign: isLeft ? 'left' : 'right' }}>
                           {formatMsgTime(msg.ts, companyTz)}
                         </div>
+                      )}
+                      {/* Status de entrega/leitura (estilo WhatsApp) — só nas nossas mensagens */}
+                      {!isCliente && !msg.falhou && !msg.apagada && (
+                        <span
+                          title={msg.read_at
+                            ? `Lido às ${formatMsgTime(msg.read_at, companyTz)}`
+                            : msg.delivered_at
+                              ? `Entregue às ${formatMsgTime(msg.delivered_at, companyTz)}`
+                              : 'Enviado'}
+                          style={{ display: 'inline-flex', color: msg.read_at ? '#53BDEB' : 'var(--text-muted)', opacity: msg.read_at ? 1 : 0.75 }}>
+                          {(msg.delivered_at || msg.read_at) ? <CheckCheck size={13} /> : <Check size={13} />}
+                        </span>
                       )}
                     </div>
                   </div>
