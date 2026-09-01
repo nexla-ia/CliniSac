@@ -1994,10 +1994,25 @@ export default function CompanyAgenda() {
                   </div>
                 )}
 
-                {/* Mensagem do lembrete: padrão ou personalizada */}
+                {/* Mensagem do lembrete: vira a pergunta da enquete (padrão ou personalizada) */}
                 {(apptModal.reminder_offsets || []).length > 0 && (
                   <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-                    <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 7 }}>Mensagem do lembrete</div>
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      📊 Pergunta da enquete
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+                      É enviada como enquete no WhatsApp. Dá pra editar o texto da pergunta — as opções são fixas:
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                      {['Confirmar', 'Cancelar'].map(label => (
+                        <span key={label} style={{
+                          padding: '5px 12px', borderRadius: 20, fontSize: 11.5, fontWeight: 600,
+                          border: '1.5px solid var(--border)', background: '#F8FAFC', color: 'var(--text-muted)',
+                        }}>
+                          {label}
+                        </span>
+                      ))}
+                    </div>
                     <div style={{ display: 'flex', gap: 6, marginBottom: apptModal._customMsg ? 8 : 0 }}>
                       {[{ v: false, label: 'Padrão' }, { v: true, label: 'Personalizada' }].map(o => {
                         const active = !!apptModal._customMsg === o.v
@@ -2014,7 +2029,7 @@ export default function CompanyAgenda() {
                       <>
                         <textarea className="nx-input" rows={3} value={apptModal.reminder_message || ''}
                           onChange={e => setApptModal(p => ({ ...p, reminder_message: e.target.value }))}
-                          placeholder="Ex: Olá {nome}! Passando pra lembrar da sua sessão em {data}. Posso confirmar? 🩺"
+                          placeholder="Ex: Olá {nome}! Confirma sua sessão em {data}?"
                           style={{ resize: 'vertical', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
                         <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 5 }}>
                           Use <strong>{'{nome}'}</strong> pro nome do paciente e <strong>{'{data}'}</strong> pra data/hora. Enviada no(s) horário(s) marcados acima.
@@ -2022,7 +2037,7 @@ export default function CompanyAgenda() {
                       </>
                     ) : (
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        Usa o texto padrão de lembrete (ou o do procedimento, se estiver configurado).
+                        Usa o texto padrão da enquete (ou o do procedimento, se estiver configurado).
                       </div>
                     )}
                   </div>
