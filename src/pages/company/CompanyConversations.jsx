@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { fetchConversaContatos } from '../../lib/queries'
 import { detectSendError, isN8nInfraNoise } from '../../lib/sendStatus'
-import { MessageSquare, Bot, User, PhoneCall, CheckCircle2, X, Send, Headset, Sparkles, Inbox, UserCheck, Archive, Mic, Square, Trash2, Paperclip, FileText, Image as ImageIcon, Calendar, UserPlus, BookUser, Lock, ArrowRightLeft, ChevronLeft, Pencil, Film, Mail, MailOpen, AlertCircle, Plus, Reply, Search, MapPin, ExternalLink, LocateFixed, Kanban, Check, CheckCheck, MoreHorizontal, ChevronRight, BarChart3 } from 'lucide-react'
+import { MessageSquare, Bot, User, PhoneCall, CheckCircle2, X, Send, Headset, Sparkles, Inbox, UserCheck, Archive, Mic, Square, Trash2, Paperclip, FileText, Image as ImageIcon, Calendar, UserPlus, BookUser, Lock, ArrowRightLeft, ChevronLeft, Pencil, Film, Mail, MailOpen, AlertCircle, Plus, Reply, Search, MapPin, ExternalLink, LocateFixed, Kanban, Check, CheckCheck, MoreHorizontal, ChevronRight, BarChart3, Copy } from 'lucide-react'
 import { useContactTags, TagPicker, TagList, TagFilter, stripPhoneSuffix, buildTagFilter } from '../../components/Tags'
 import QuickMessages from '../../components/QuickMessages'
 import ConfirmModal from '../../components/ConfirmModal'
@@ -433,6 +433,7 @@ export default function CompanyConversations() {
   const [crmSaving, setCrmSaving]         = useState(false)
   const [futureAppts, setFutureAppts]     = useState({}) // numero (só dígitos) → { starts_at, status, agenda_name }
   const [contextMenu, setContextMenu] = useState(null) // { x, y, contact }
+  const [msgMenu, setMsgMenu] = useState(null) // { x, y, msg }
   const [saveContactModal, setSaveContactModal] = useState(null) // { numero, nome, notes }
   const [savingContact, setSavingContact] = useState(false)
   const [locationModal, setLocationModal] = useState(null) // { input, name, address, geoError } | null
@@ -663,6 +664,29 @@ export default function CompanyConversations() {
       window.removeEventListener('scroll', close, true)
     }
   }, [contextMenu])
+
+  // Fecha o menu de ações da mensagem (⋯) ao clicar fora
+  useEffect(() => {
+    if (!msgMenu) return
+    const close = () => setMsgMenu(null)
+    window.addEventListener('click', close)
+    window.addEventListener('scroll', close, true)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('scroll', close, true)
+    }
+  }, [msgMenu])
+
+  // Copia o texto da mensagem (nossa ou do cliente) pra área de transferência
+  async function copyMessageText(msg) {
+    try {
+      await navigator.clipboard.writeText(msg.content || '')
+      setToast({ message: 'Mensagem copiada!', color: '#16A34A' })
+    } catch {
+      setToast({ message: 'Não deu pra copiar — tenta selecionar o texto direto.', color: '#DC2626' })
+    }
+    setTimeout(() => setToast(null), 2500)
+  }
 
   // CRM: carrega o funil ativo, as etapas e o mapa de quem já é lead — pra dar
   // pra adicionar/mover o contato pelo botão do CRM no topo da conversa.
@@ -3478,53 +3502,22 @@ export default function CompanyConversations() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: isLeft ? 'flex-start' : 'flex-end', gap: 5 }}>
                       {!msg.apagada && editingMsgId !== msg.id && (
                         <button
-                          onClick={() => startReply(msg)}
-                          title="Responder"
+                          onClick={e => {
+                            const r = e.currentTarget.getBoundingClientRect()
+                            setMsgMenu({ x: isLeft ? r.left : r.right - 160, y: r.bottom + 4, msg })
+                          }}
+                          title="Mais ações"
                           style={{
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                             width: 18, height: 18, borderRadius: 4, border: 'none',
                             background: 'transparent', cursor: 'pointer',
-                            color: '#16A34A', opacity: 0.6, padding: 0,
+                            color: 'var(--text-muted)', opacity: 0.6, padding: 0,
                             transition: 'opacity 0.15s',
                           }}
                           onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                           onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
                         >
-                          <Reply size={12} />
-                        </button>
-                      )}
-                      {isAtendente && !msg.base64 && !msg.apagada && editingMsgId !== msg.id && (
-                        <button
-                          onClick={() => { setEditingMsgId(msg.id); setEditingText(msg.content || '') }}
-                          title="Editar mensagem"
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            width: 18, height: 18, borderRadius: 4, border: 'none',
-                            background: 'transparent', cursor: 'pointer',
-                            color: 'var(--text-muted)', opacity: 0.55, padding: 0,
-                            transition: 'opacity 0.15s',
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                          onMouseLeave={e => e.currentTarget.style.opacity = '0.55'}
-                        >
-                          <Pencil size={10} />
-                        </button>
-                      )}
-                      {!msg.apagada && editingMsgId !== msg.id && (
-                        <button
-                          onClick={() => setConfirmDelMsg(msg)}
-                          title="Apagar mensagem"
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            width: 18, height: 18, borderRadius: 4, border: 'none',
-                            background: 'transparent', cursor: 'pointer',
-                            color: '#DC2626', opacity: 0.5, padding: 0,
-                            transition: 'opacity 0.15s',
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                          onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
-                        >
-                          <Trash2 size={10} />
+                          <MoreHorizontal size={14} />
                         </button>
                       )}
                       {msg.ts && (
@@ -3865,6 +3858,54 @@ export default function CompanyConversations() {
                   {isUnread ? <MailOpen size={13} /> : <Mail size={13} />}
                   {isUnread ? 'Marcar como lida' : 'Marcar como não lida'}
                 </button>
+              </>
+            )
+          })()}
+        </div>
+      , document.body)}
+
+      {msgMenu && createPortal(
+        <div style={{
+          position: 'fixed', left: Math.max(4, msgMenu.x), top: msgMenu.y, zIndex: 99998,
+          background: '#fff', border: '1px solid var(--border)',
+          borderRadius: 8, boxShadow: '0 6px 24px rgba(0,0,0,0.12)',
+          padding: 4, minWidth: 160,
+        }}
+        onClick={e => e.stopPropagation()}
+        >
+          {(() => {
+            const m = msgMenu.msg
+            const mIsCliente = m.type === 'cliente'
+            const mIsAtendente = m.type === 'atendente'
+            const itemStyle = {
+              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+              padding: '8px 12px', border: 'none', background: 'transparent',
+              fontSize: 13, color: 'var(--text-primary)', cursor: 'pointer',
+              borderRadius: 6, textAlign: 'left',
+            }
+            const dangerStyle = { ...itemStyle, color: '#DC2626' }
+            const hoverOn  = e => e.currentTarget.style.background = '#F8FAFC'
+            const hoverOff = e => e.currentTarget.style.background = 'transparent'
+            return (
+              <>
+                <button onClick={() => { startReply(m); setMsgMenu(null) }} style={itemStyle} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
+                  <Reply size={13} /> Responder
+                </button>
+                <button onClick={() => { copyMessageText(m); setMsgMenu(null) }} style={itemStyle} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
+                  <Copy size={13} /> Copiar
+                </button>
+                {mIsAtendente && !m.base64 && (
+                  <button
+                    onClick={() => { setEditingMsgId(m.id); setEditingText(m.content || ''); setMsgMenu(null) }}
+                    style={itemStyle} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
+                    <Pencil size={13} /> Editar
+                  </button>
+                )}
+                {!mIsCliente && (
+                  <button onClick={() => { setConfirmDelMsg(m); setMsgMenu(null) }} style={dangerStyle} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
+                    <Trash2 size={13} /> Apagar
+                  </button>
+                )}
               </>
             )
           })()}
