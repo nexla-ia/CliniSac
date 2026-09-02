@@ -3534,16 +3534,12 @@ export default function CompanyConversations() {
                           {formatMsgTime(msg.ts, companyTz)}
                         </div>
                       )}
-                      {/* Status de entrega/leitura (estilo WhatsApp) — só nas nossas mensagens */}
+                      {/* Status de entrega/leitura — sempre 2 tiques: cinza (enviado) ou azul (lido) */}
                       {!isCliente && !msg.falhou && !msg.send_error_at && !msg.apagada && (
                         <span
-                          title={msg.read_at
-                            ? `Lido às ${formatMsgTime(msg.read_at, companyTz)}`
-                            : msg.delivered_at
-                              ? `Entregue às ${formatMsgTime(msg.delivered_at, companyTz)}`
-                              : 'Enviado'}
+                          title={msg.read_at ? `Lido às ${formatMsgTime(msg.read_at, companyTz)}` : 'Enviado'}
                           style={{ display: 'inline-flex', color: msg.read_at ? '#53BDEB' : 'var(--text-muted)', opacity: msg.read_at ? 1 : 0.75 }}>
-                          {(msg.delivered_at || msg.read_at) ? <CheckCheck size={13} /> : <Check size={13} />}
+                          <CheckCheck size={13} />
                         </span>
                       )}
                     </div>
