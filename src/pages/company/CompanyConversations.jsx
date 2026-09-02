@@ -3518,15 +3518,15 @@ export default function CompanyConversations() {
                           title="Mais ações"
                           style={{
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            width: 18, height: 18, borderRadius: 4, border: 'none',
+                            width: 20, height: 20, borderRadius: 4, border: 'none',
                             background: 'transparent', cursor: 'pointer',
-                            color: 'var(--text-muted)', opacity: 0.6, padding: 0,
+                            color: 'var(--text-secondary)', opacity: 0.85, padding: 0,
                             transition: 'opacity 0.15s',
                           }}
                           onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                          onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
+                          onMouseLeave={e => e.currentTarget.style.opacity = '0.85'}
                         >
-                          <MoreHorizontal size={14} />
+                          <MoreHorizontal size={16} strokeWidth={2.5} />
                         </button>
                       )}
                       {msg.ts && (
@@ -3538,8 +3538,8 @@ export default function CompanyConversations() {
                       {!isCliente && !msg.falhou && !msg.send_error_at && !msg.apagada && (
                         <span
                           title={msg.read_at ? `Lido às ${formatMsgTime(msg.read_at, companyTz)}` : 'Enviado'}
-                          style={{ display: 'inline-flex', color: msg.read_at ? '#53BDEB' : 'var(--text-muted)', opacity: msg.read_at ? 1 : 0.75 }}>
-                          <CheckCheck size={13} />
+                          style={{ display: 'inline-flex', color: msg.read_at ? '#0EA5E9' : 'var(--text-secondary)', opacity: 1 }}>
+                          <CheckCheck size={15} strokeWidth={2.5} />
                         </span>
                       )}
                     </div>
