@@ -279,6 +279,32 @@ function formatApptShort(ts) {
   return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${hh}`
 }
 
+// "Hoje" / "Ontem" / "DD/MM/AAAA" pro divisor de data entre mensagens —
+// no fuso da clínica, igual formatMsgTime.
+function formatDateDivider(ts, tz) {
+  if (!ts) return ''
+  const t = new Date(ts)
+  if (isNaN(t)) return ''
+  const off = tzOffsetMinutes(tz) * 60000
+  const loc = new Date(t.getTime() + off)
+  const nowLoc = new Date(Date.now() + off)
+  const sameDay = (a, b) => a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate()
+  if (sameDay(loc, nowLoc)) return 'Hoje'
+  if (sameDay(loc, new Date(nowLoc.getTime() - 86400000))) return 'Ontem'
+  return `${String(loc.getUTCDate()).padStart(2, '0')}/${String(loc.getUTCMonth() + 1).padStart(2, '0')}/${loc.getUTCFullYear()}`
+}
+
+// Chave de dia (no fuso da clínica) pra comparar se duas mensagens são do
+// mesmo dia — usado só pra decidir onde inserir o divisor de data.
+function dayKeyTz(ts, tz) {
+  if (!ts) return ''
+  const t = new Date(ts)
+  if (isNaN(t)) return ''
+  const off = tzOffsetMinutes(tz) * 60000
+  const loc = new Date(t.getTime() + off)
+  return `${loc.getUTCFullYear()}-${loc.getUTCMonth()}-${loc.getUTCDate()}`
+}
+
 function formatContactTime(ts) {
   if (!ts) return ''
   const date = new Date(ts)
@@ -3126,14 +3152,27 @@ export default function CompanyConversations() {
               {!loadingMsgs && messages.length === 0 && (
                 <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', marginTop: '2rem' }}>Sem mensagens.</div>
               )}
-              {messages.map(msg => {
+              {messages.map((msg, msgIdx) => {
                 const isCliente    = msg.type === 'cliente'
                 const isAtendente  = msg.type === 'atendente'
                 const isLeft       = isCliente
                 const isImage      = isCliente && /^(esta imagem|a imagem|esse documento|este documento|essa imagem|o documento|a foto|essa foto)/i.test(msg.content.trim())
                 const labelColor   = isCliente ? 'var(--text-muted)' : isAtendente ? '#16A34A' : '#2563EB'
+                const prevMsg = messages[msgIdx - 1]
+                const showDateDivider = msg.ts && dayKeyTz(msg.ts, companyTz) !== (prevMsg?.ts ? dayKeyTz(prevMsg.ts, companyTz) : null)
                 return (
                   <div key={msg.id} data-msg-id={msg.id_mensagem || undefined} data-db-id={msg.id}>
+                    {showDateDivider && (
+                      <div style={{ display: 'flex', justifyContent: 'center', margin: '14px 0 10px' }}>
+                        <div style={{
+                          background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                          borderRadius: 14, padding: '4px 14px', fontSize: 11.5, fontWeight: 600,
+                          color: 'var(--text-muted)', boxShadow: '0 1px 2px rgba(15,23,42,0.06)',
+                        }}>
+                          {formatDateDivider(msg.ts, companyTz)}
+                        </div>
+                      </div>
+                    )}
                     <div className="msg-label" style={{
                       display: 'flex', alignItems: 'center', gap: 4,
                       justifyContent: isLeft ? 'flex-start' : 'flex-end',
