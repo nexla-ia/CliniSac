@@ -23,9 +23,9 @@ const solutions = [
 ]
 
 const steps = [
-  { n: '1', title: 'Conecte o WhatsApp da clínica', desc: 'A gente configura junto com você. O número continua o mesmo — a IA entra em cena no mesmo dia.' },
-  { n: '2', title: 'A IA atende e organiza', desc: 'Paciente recebe resposta na hora, o lead entra no funil e a recepção assume pra marcar — com lembrete automático depois de agendado.' },
-  { n: '3', title: 'Você acompanha tudo no painel', desc: 'Conversas, funil, agenda, financeiro e métricas num lugar só — com visão do que a IA fez.' },
+  { n: '1', title: 'Conecte o WhatsApp da clínica', desc: 'A gente configura junto com você. O número continua o mesmo e, na hora, o sistema já começa a receber as conversas e a alimentar a operação.' },
+  { n: '2', title: 'A equipe atende — e a IA, se você quiser', desc: 'Tudo cai no painel pra sua equipe responder. Ativou a IA? Ela já começa a atender seus pacientes, treinada na sua clínica pra soar como a sua própria secretária.' },
+  { n: '3', title: 'Você acompanha tudo no painel', desc: 'Conversas, funil, agenda, financeiro e métricas num lugar só — com visão do que a equipe e a IA fizeram.' },
 ]
 
 const icps = [
@@ -39,6 +39,7 @@ const faqs = [
   { q: 'A IA marca a consulta sozinha?', a: 'Hoje a IA atende o primeiro contato, tira dúvidas e entende o que o paciente precisa — 24 horas por dia. Quem confirma o horário na agenda é a sua equipe. Já estamos evoluindo pra IA agendar de ponta a ponta; a confirmação de presença por WhatsApp já é o primeiro passo.' },
   { q: 'Consigo assumir a conversa quando eu quiser?', a: 'Sim, a qualquer momento. A IA segura o atendimento e avisa a equipe quando é caso de humano — e você assume com um clique, sem o paciente perder o fio.' },
   { q: 'E se eu não quiser usar a IA?', a: 'Sem problema. A IA é opcional e pode ficar desligada — aí sua equipe atende tudo manualmente e você segue com a caixa unificada, a agenda, o CRM, o prontuário e o financeiro do mesmo jeito. Se mudar de ideia, é só ligar a IA quando quiser.' },
+  { q: 'A IA é genérica, igual pra todo mundo?', a: 'Não. A gente desenvolve e testa a IA com base na sua clínica — seus procedimentos, seus horários, seu jeito de falar. Ela não é uma IA de prateleira: atende sabendo tudo sobre a sua operação, como se fosse a sua própria secretária.' },
   { q: 'Funciona com o Instagram também?', a: 'Funciona. WhatsApp e Instagram chegam na mesma caixa unificada, então a equipe responde tudo de um lugar só.' },
   { q: 'Os dados dos meus pacientes ficam seguros?', a: 'Sim. Cada clínica enxerga apenas os próprios dados, isolados das demais, com práticas de LGPD. Prontuário, conversa e financeiro ficam restritos à sua equipe.' },
   { q: 'Preciso instalar alguma coisa?', a: 'Não. O CliniSac roda no navegador, no computador ou no celular. A configuração é acompanhada pela nossa equipe — você não fica sozinho.' },
@@ -202,7 +203,7 @@ export default function LandingPage() {
                   <div className="lp-mini-b lp-mini-out">Perfeito! Já passo pra recepção confirmar seu horário.</div>
                 </div>
               </div>
-              <div className="lp-feat-body"><h3>Atendimento — com ou sem IA</h3><p>Caixa unificada de WhatsApp e Instagram pra equipe atender de um lugar só. Se quiser, a IA responde e qualifica na hora, 24/7; se não quiser, é só desligar.</p></div>
+              <div className="lp-feat-body"><h3>Atendimento — com ou sem IA</h3><p>Caixa unificada de WhatsApp e Instagram pra equipe atender de um lugar só. A IA é opcional e não é genérica: a gente desenvolve e testa ela pra sua clínica, então ela atende como a sua própria secretária — e desliga quando você quiser.</p></div>
             </article>
 
             <article className="lp-feat">
@@ -223,6 +224,7 @@ export default function LandingPage() {
             </article>
 
             <article className="lp-feat">
+              <span className="lp-star"><svg width="10" height="10" viewBox="0 0 24 24" fill="#0F0E1B"><path d="M12 2l2.9 6.3 6.9.7-5.1 4.6 1.4 6.8L12 17.8 5.9 20.4l1.4-6.8L2.2 9l6.9-.7z"/></svg>Diferencial</span>
               <div className="lp-feat-vis v-violet">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 7, height: '100%' }}>
                   {[['Novo lead', '#2563EB', ['Fernanda M.', 'Diego S.']], ['Orçamento', '#D97706', ['Ana Beatriz', 'Carlos D.']], ['Fechado', '#059669', ['Paula A.', 'Rafael T.']]].map(([col, c, names], i) => (
@@ -316,6 +318,7 @@ export default function LandingPage() {
               <p>Depois da consulta, o sistema pergunta como foi. E, todo mês, envia a pesquisa de satisfação com o link do seu Google Meu Negócio — paciente feliz vira avaliação 5 estrelas.</p>
             </article>
             <article className="lp-auto">
+              <span className="lp-star"><svg width="10" height="10" viewBox="0 0 24 24" fill="#0F0E1B"><path d="M12 2l2.9 6.3 6.9.7-5.1 4.6 1.4 6.8L12 17.8 5.9 20.4l1.4-6.8L2.2 9l6.9-.7z"/></svg>Diferencial</span>
               <span className="lp-auto-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0E1B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2M12 2h.01M5 4 3 6M19 4l2 2" /></svg></span>
               <h3>Recall por procedimento</h3>
               <p>Você escolhe, por procedimento, depois de quanto tempo o paciente recebe um "já é hora de voltar?". A cadeira enche sozinha, sem ninguém garimpar a base.</p>
