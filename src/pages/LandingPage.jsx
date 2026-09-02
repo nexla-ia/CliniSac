@@ -63,7 +63,8 @@ export default function LandingPage() {
         <div className="lp-wrap lp-nav-inner">
           <Link to="/"><img src="/clinisac-logo.svg" alt="CliniSac" /></Link>
           <div className="lp-nav-links">
-            <a href="#recursos">Recursos</a>
+            <a href="#recursos">A plataforma</a>
+            <a href="#automacoes">Automações</a>
             <a href="#como-funciona">Como funciona</a>
             <a href="#pra-quem">Pra quem é</a>
             <a href="#planos">Planos</a>
@@ -79,9 +80,9 @@ export default function LandingPage() {
       {/* HERO */}
       <header className="lp-wrap lp-hero">
         <div className="lp-hero-copy">
-          <span className="lp-pill"><span className="lp-pulse" />O SAC inteligente da sua clínica</span>
-          <h1>Nenhum paciente sem resposta — <span className="serif hot">nem às 3 da manhã</span>.</h1>
-          <p className="lp-hero-sub">A IA atende o primeiro contato na hora e entende o que o paciente precisa; sua equipe assume pra marcar. WhatsApp, agenda, CRM, prontuário e financeiro num painel só.</p>
+          <span className="lp-pill"><span className="lp-pulse" />Atendimento e gestão numa plataforma só</span>
+          <h1>A clínica inteira — do primeiro contato ao <span className="serif hot">retorno do paciente</span>.</h1>
+          <p className="lp-hero-sub">WhatsApp e Instagram, agenda com confirmação automática, CRM, prontuário, financeiro e métricas — integrados num painel só. A IA atende junto quando você quer; e desliga quando não quer.</p>
           <div className="lp-hero-ctas">
             <a href={waUrl} target="_blank" rel="noreferrer" className="lp-btn lp-btn-primary lp-btn-lg">Testar 14 dias grátis</a>
             <a href="#como-funciona" className="lp-btn lp-btn-ghost lp-btn-lg">Ver como funciona</a>
@@ -160,10 +161,10 @@ export default function LandingPage() {
       {/* FAIXA DE PROVA */}
       <div className="lp-strip">
         <div className="lp-wrap lp-strip-inner">
-          <span><b>24/7</b> de atendimento</span>
-          <span><b>&lt; 3s</b> pra primeira resposta</span>
           <span><b>1 painel</b> pra clínica inteira</span>
-          <span><b>0</b> planilha do lado</span>
+          <span>WhatsApp <b>+ Instagram</b></span>
+          <span>agenda · CRM · <b>financeiro</b></span>
+          <span>IA <b>opcional</b>, com ou sem</span>
         </div>
       </div>
 
@@ -187,8 +188,9 @@ export default function LandingPage() {
       <section className="lp-sec" id="recursos">
         <div className="lp-wrap">
           <div className="lp-head center">
-            <span className="lp-kicker">Recursos</span>
-            <h2>Do primeiro contato ao faturamento, sem sair do painel</h2>
+            <span className="lp-kicker">A plataforma</span>
+            <h2>Uma clínica completa, não só um chatbot</h2>
+            <p>Seis módulos que conversam entre si — a IA é só uma das camadas, e é opcional.</p>
           </div>
           <div className="lp-features">
 
@@ -201,7 +203,7 @@ export default function LandingPage() {
                   <div className="lp-mini-b lp-mini-out">Perfeito! Já passo pra recepção confirmar seu horário.</div>
                 </div>
               </div>
-              <div className="lp-feat-body"><h3>Atendimento com IA 24/7</h3><p>A IA responde dúvidas e qualifica o lead na hora — de madrugada, no feriado, sempre. Sua equipe entra pra fechar o agendamento.</p></div>
+              <div className="lp-feat-body"><h3>Atendimento — com ou sem IA</h3><p>Caixa unificada de WhatsApp e Instagram pra equipe atender de um lugar só. Se quiser, a IA responde e qualifica na hora, 24/7; se não quiser, é só desligar.</p></div>
             </article>
 
             <article className="lp-feat">
@@ -295,8 +297,41 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* AUTOMAÇÕES */}
+      <section className="lp-sec lp-sec-soft" id="automacoes">
+        <div className="lp-wrap">
+          <div className="lp-head center">
+            <span className="lp-kicker">Automações</span>
+            <h2>O sistema trabalha mesmo quando ninguém está olhando</h2>
+            <p>Rotinas que rodam sozinhas — antes e depois da consulta — pra clínica não depender de alguém lembrar.</p>
+          </div>
+          <div className="lp-autos">
+            <article className="lp-auto">
+              <span className="lp-auto-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0E1B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg></span>
+              <h3>Confirmação de presença</h3>
+              <p>O sistema chama o paciente no WhatsApp pra confirmar a consulta e atualiza a agenda com a resposta — menos faltas, sem a recepção ligar.</p>
+            </article>
+            <article className="lp-auto">
+              <span className="lp-auto-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0E1B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9 9 0 0 0-6.4 2.6L3 8" /><path d="M3 3v5h5" /></svg></span>
+              <h3>Follow-up pós-consulta</h3>
+              <p>Marcou a consulta como concluída? O sistema entra em contato pra saber como foi — cuidado que o paciente sente e que traz ele de volta.</p>
+            </article>
+            <article className="lp-auto">
+              <span className="lp-auto-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0E1B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11.5 3.3a.5.5 0 0 1 .9 0l2.3 4.6 5.1.7a.5.5 0 0 1 .3.9l-3.7 3.6.9 5.1a.5.5 0 0 1-.8.5L12 16.9l-4.6 2.4a.5.5 0 0 1-.8-.5l.9-5.1L3.8 9.5a.5.5 0 0 1 .3-.9l5.1-.7z" /></svg></span>
+              <h3>Pesquisa de satisfação</h3>
+              <p>Envio automático da pesquisa de satisfação com o link do seu Google Meu Negócio — transforma paciente feliz em avaliação 5 estrelas.</p>
+            </article>
+            <article className="lp-auto">
+              <span className="lp-auto-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0E1B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="m7 14 4-4 3 3 5-6" /></svg></span>
+              <h3>Rastreamento de campanhas</h3>
+              <p>Cada lead entra marcado com a origem, pra você medir quais campanhas realmente trazem paciente — e parar de gastar no que não converte.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
       {/* COMO FUNCIONA */}
-      <section className="lp-sec lp-sec-soft" id="como-funciona">
+      <section className="lp-sec" id="como-funciona">
         <div className="lp-wrap">
           <div className="lp-head">
             <span className="lp-kicker">Como funciona</span>

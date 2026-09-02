@@ -270,3 +270,13 @@
 .lp-q[open] .lp-q-ic { transform: rotate(45deg); background: var(--ia-green); border-color: var(--ia-green); }
 .lp-q[open] .lp-q-ic svg { stroke: #fff; }
 .lp-q-a { padding: 0 22px 20px; font-size: 14.5px; color: var(--ink-2); line-height: 1.65; max-width: 62ch; }
+
+/* ─── automações (banda dedicada) ─────────────────────────────────────── */
+.lp-autos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 44px; }
+.lp-auto { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 11px; transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+.lp-auto:hover { transform: translateY(-4px); border-color: rgba(74,222,128,0.5); box-shadow: 0 18px 40px -22px rgba(74,222,128,0.35); }
+.lp-auto-ic { width: 42px; height: 42px; border-radius: 12px; background: var(--grad-brand); display: flex; align-items: center; justify-content: center; }
+.lp-auto h3 { font-size: 16px; font-weight: 600; letter-spacing: -0.02em; }
+.lp-auto p { font-size: 13px; color: #6B6880; line-height: 1.6; }
+@media (max-width: 900px) { .lp-autos { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .lp-autos { grid-template-columns: 1fr; } }
