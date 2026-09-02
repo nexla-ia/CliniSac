@@ -292,3 +292,93 @@
   box-shadow: 0 6px 16px -6px rgba(74, 222, 128, 0.65);
 }
 .lp-star svg { display: block; }
+
+/* ═══ cena animada: caos de sistemas → tudo em um ═══════════════════════ */
+.lp-scene { display: grid; grid-template-columns: 1.15fr 110px 1fr; gap: 18px; align-items: center; margin-top: 44px; }
+.lp-scene-note { margin-top: 22px; text-align: center; font-family: 'Fragment Mono', monospace; font-size: 12px; letter-spacing: 0.06em; color: var(--muted); }
+.lp-scene-note b { color: var(--ink); font-weight: 700; }
+
+/* lado do caos */
+.lp-chaos { position: relative; height: 340px; }
+.lp-win {
+  position: absolute; background: #fff; border: 1px solid var(--line-2); border-radius: 10px;
+  box-shadow: 0 16px 36px -18px rgba(15, 14, 27, 0.38); overflow: hidden; font-size: 10px; color: var(--ink-2);
+  transform: rotate(var(--rot, 0deg));
+  animation: lpFloat var(--dur, 5s) ease-in-out var(--delay, 0s) infinite;
+}
+@keyframes lpFloat { 0%, 100% { transform: rotate(var(--rot)) translateY(0); } 50% { transform: rotate(var(--rot)) translateY(-7px); } }
+.lp-win-bar { display: flex; align-items: center; gap: 5px; padding: 6px 9px; border-bottom: 1px solid var(--line); background: #F6F5FB; }
+.lp-win-bar i { width: 7px; height: 7px; border-radius: 50%; }
+.lp-win-bar i:nth-child(1) { background: #FF6B6B; } .lp-win-bar i:nth-child(2) { background: #FFD166; } .lp-win-bar i:nth-child(3) { background: #6BE28B; }
+.lp-win-bar b { margin-left: 5px; font-size: 9.5px; font-weight: 700; color: var(--ink); }
+.lp-badge { margin-left: auto; min-width: 16px; height: 16px; padding: 0 5px; border-radius: 99px; background: #DC2626; color: #fff; font-size: 8.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; animation: lpBadge 1.6s ease-in-out infinite; }
+@keyframes lpBadge { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
+.lp-win-body { padding: 8px 9px; display: flex; flex-direction: column; gap: 5px; }
+.lp-line { display: block; height: 6px; border-radius: 4px; background: #ECEAF4; }
+.lp-line.s { width: 55%; } .lp-line.m { width: 82%; } .lp-line.g { background: #DCFCE7; width: 68%; align-self: flex-end; }
+.lp-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.lp-cal i { display: block; height: 9px; border-radius: 2px; background: #EEF2F6; } .lp-cal i.on { background: #BFDBFE; }
+.lp-sheet { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 2px; }
+.lp-sheet i { display: block; height: 9px; background: #F8F9FB; border: 1px solid #E5E7EB; } .lp-sheet i.h { background: #E5E7EB; }
+.lp-prog { height: 7px; border-radius: 99px; background: #EEF2F6; overflow: hidden; }
+.lp-prog i { display: block; height: 100%; background: #F59E0B; animation: lpProg 3s linear infinite; }
+@keyframes lpProg { 0% { width: 8%; } 100% { width: 92%; } }
+.lp-win.w1 { left: 4%;  top: 6%;    width: 58%; --rot: -5deg; --dur: 5.2s; --delay: 0s;   z-index: 2; }
+.lp-win.w2 { right: 2%; top: 12%;   width: 54%; --rot: 4deg;  --dur: 6s;   --delay: .6s;  z-index: 1; }
+.lp-win.w3 { left: 12%; bottom: 8%; width: 56%; --rot: 3deg;  --dur: 5.6s; --delay: 1.1s; z-index: 3; }
+.lp-win.w4 { right: 5%; bottom: 16%; width: 50%; --rot: -6deg; --dur: 6.4s; --delay: .3s;  z-index: 4; }
+
+/* o cursor pulando entre as janelas — "a pessoa gerenciando isso" */
+.lp-cursor { position: absolute; z-index: 6; width: 22px; height: 22px; pointer-events: none; filter: drop-shadow(0 3px 6px rgba(15, 14, 27, 0.35)); animation: lpCursor 9s ease-in-out infinite; }
+@keyframes lpCursor {
+  0%, 13%  { left: 22%; top: 30%; transform: scale(1); }
+  15%      { left: 22%; top: 30%; transform: scale(.82); }
+  28%, 41% { left: 70%; top: 18%; transform: scale(1); }
+  43%      { left: 70%; top: 18%; transform: scale(.82); }
+  56%, 69% { left: 72%; top: 68%; transform: scale(1); }
+  71%      { left: 72%; top: 68%; transform: scale(.82); }
+  84%, 97% { left: 30%; top: 74%; transform: scale(1); }
+  100%     { left: 22%; top: 30%; transform: scale(1); }
+}
+
+/* a seta que flui pro "tudo em um" */
+.lp-arrow { display: flex; align-items: center; justify-content: center; }
+.lp-arrow svg { width: 110px; height: 60px; overflow: visible; }
+.lp-arrow path { stroke: var(--ia-green); stroke-width: 3; fill: none; stroke-linecap: round; stroke-dasharray: 8 8; animation: lpDash 1.1s linear infinite; }
+@keyframes lpDash { to { stroke-dashoffset: -32; } }
+.lp-arrow polygon { fill: var(--ia-green); }
+
+/* lado do "tudo em um" */
+.lp-one { background: #fff; border: 1px solid var(--line-2); border-radius: 14px; overflow: hidden; position: relative; box-shadow: 0 26px 60px -30px rgba(74, 222, 128, 0.55), 0 10px 30px -18px rgba(15, 14, 27, 0.25); }
+.lp-one::after { content: ''; position: absolute; inset: 0; border-radius: 14px; pointer-events: none; animation: lpGlow 3.2s ease-in-out infinite; }
+@keyframes lpGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); } 50% { box-shadow: 0 0 0 7px rgba(74, 222, 128, 0.13); } }
+.lp-one-bar { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid var(--line); background: linear-gradient(90deg, #F4FBF6, #fff); }
+.lp-one-bar img { height: 20px; width: auto; }
+.lp-one-bar span { margin-left: auto; font-family: 'Fragment Mono', monospace; font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ia-green); font-weight: 700; }
+.lp-one-rows { padding: 10px 12px 6px; display: flex; flex-direction: column; gap: 8px; }
+.lp-one-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #FBFBFE; font-size: 13px; font-weight: 600; color: var(--ink); opacity: 0; transform: translateX(16px); }
+.lp-one-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+.lp-one-chk { margin-left: auto; width: 20px; height: 20px; border-radius: 50%; background: #ECFDF3; border: 1px solid #A7F3D0; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.lp-one-chk path { stroke: var(--ia-green); stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 24; stroke-dashoffset: 24; }
+.lp-one-cap { padding: 6px 14px 13px; font-size: 12px; color: var(--muted); }
+
+/* sequência que liga quando a cena entra na tela */
+.in-view .lp-one-row { animation: lpRowIn .55s cubic-bezier(.2, .7, .2, 1) forwards; }
+.in-view .lp-one-row:nth-child(1) { animation-delay: .15s; } .in-view .lp-one-row:nth-child(2) { animation-delay: .38s; }
+.in-view .lp-one-row:nth-child(3) { animation-delay: .61s; } .in-view .lp-one-row:nth-child(4) { animation-delay: .84s; }
+@keyframes lpRowIn { to { opacity: 1; transform: none; } }
+.in-view .lp-one-row path { animation: lpTick .4s ease-out forwards; }
+.in-view .lp-one-row:nth-child(1) path { animation-delay: .55s; } .in-view .lp-one-row:nth-child(2) path { animation-delay: .78s; }
+.in-view .lp-one-row:nth-child(3) path { animation-delay: 1.01s; } .in-view .lp-one-row:nth-child(4) path { animation-delay: 1.24s; }
+@keyframes lpTick { to { stroke-dashoffset: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-win, .lp-badge, .lp-prog i, .lp-cursor, .lp-arrow path, .lp-one::after { animation: none; }
+  .lp-one-row { opacity: 1; transform: none; animation: none; }
+  .lp-one-chk path { stroke-dashoffset: 0; }
+}
+@media (max-width: 900px) {
+  .lp-scene { grid-template-columns: 1fr; gap: 6px; }
+  .lp-chaos { height: 300px; }
+  .lp-arrow { height: 76px; transform: rotate(90deg); }
+}

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import './LandingPage.css'
 
@@ -14,13 +14,6 @@ const Check = ({ c = '#059669', s = 13 }) => (
 const Star = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" strokeWidth="1"><path d="M11.5 2.3a.53.53 0 0 1 .95 0l2.31 4.68a2.12 2.12 0 0 0 1.6 1.16l5.16.75a.53.53 0 0 1 .3.9l-3.74 3.64a2.12 2.12 0 0 0-.61 1.88l.88 5.14a.53.53 0 0 1-.77.56l-4.62-2.43a2.12 2.12 0 0 0-1.97 0L6.4 21.01a.53.53 0 0 1-.77-.56l.88-5.14a2.12 2.12 0 0 0-.61-1.88L2.16 9.79a.53.53 0 0 1 .3-.9l5.16-.76a2.12 2.12 0 0 0 1.6-1.16z" /></svg>
 )
-
-const solutions = [
-  'WhatsApp e Instagram numa caixa só — não em abas soltas',
-  'Agenda com lembrete e confirmação automática, sem disparador à parte',
-  'Financeiro que nasce da consulta, sem planilha do lado',
-  'CRM com funil e follow-up cobrado no dia certo',
-]
 
 const steps = [
   { n: '1', title: 'Conecte o WhatsApp da clínica', desc: 'A gente configura junto com você. O número continua o mesmo e, na hora, o sistema já começa a receber as conversas e a alimentar a operação.' },
@@ -56,6 +49,20 @@ const plans = [
 ]
 
 export default function LandingPage() {
+  // A sequência do "tudo em um" só dispara quando a cena entra na tela —
+  // senão ela rodaria escondida no carregamento e ninguém veria.
+  const sceneRef = useRef(null)
+  const [sceneInView, setSceneInView] = useState(false)
+  useEffect(() => {
+    const el = sceneRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') { setSceneInView(true); return }
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) { setSceneInView(true); io.disconnect() }
+    }, { threshold: 0.35 })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+
   return (
     <div className="lp">
 
@@ -170,17 +177,61 @@ export default function LandingPage() {
 
       {/* PROBLEMA / SOLUÇÃO */}
       <section className="lp-sec lp-sec-soft">
-        <div className="lp-wrap lp-split">
+        <div className="lp-wrap">
           <div className="lp-head">
             <span className="lp-kicker">Seu problema, nossa solução</span>
             <h2>Uma clínica não deveria precisar de cinco sistemas abertos</h2>
             <p>WhatsApp Web num canto, o sistema de agenda em outro, o financeiro num terceiro, o disparador de mensagens num quarto — cada um cobrando à parte e nenhum conversando com o outro. O CliniSac junta tudo num painel só.</p>
           </div>
-          <div className="lp-solutions">
-            {solutions.map((s, i) => (
-              <div className="lp-sol" key={i}><span className="lp-check"><Check /></span><span>{s}</span></div>
-            ))}
+
+          <div className={`lp-scene${sceneInView ? ' in-view' : ''}`} ref={sceneRef}>
+            {/* o caos: 4 janelas soltas e um cursor pulando entre elas */}
+            <div className="lp-chaos" aria-hidden="true">
+              <div className="lp-win w1">
+                <div className="lp-win-bar"><i /><i /><i /><b>WhatsApp Web</b><span className="lp-badge">12</span></div>
+                <div className="lp-win-body"><span className="lp-line m" /><span className="lp-line g" /><span className="lp-line s" /><span className="lp-line g" /></div>
+              </div>
+              <div className="lp-win w2">
+                <div className="lp-win-bar"><i /><i /><i /><b>Sistema de agenda</b></div>
+                <div className="lp-win-body"><div className="lp-cal">{Array.from({ length: 21 }).map((_, i) => <i key={i} className={[3, 9, 10, 16].includes(i) ? 'on' : ''} />)}</div></div>
+              </div>
+              <div className="lp-win w3">
+                <div className="lp-win-bar"><i /><i /><i /><b>Financeiro</b></div>
+                <div className="lp-win-body"><div className="lp-sheet">{Array.from({ length: 12 }).map((_, i) => <i key={i} className={i < 3 ? 'h' : ''} />)}</div></div>
+              </div>
+              <div className="lp-win w4">
+                <div className="lp-win-bar"><i /><i /><i /><b>Disparador</b><span className="lp-badge" style={{ background: '#F59E0B' }}>!</span></div>
+                <div className="lp-win-body"><span className="lp-line s" /><div className="lp-prog"><i /></div><span style={{ fontSize: 8.5, color: '#B45309' }}>Enviando 91/240…</span></div>
+              </div>
+              <svg className="lp-cursor" viewBox="0 0 24 24"><path d="M5 3l14 8-6 2-3 6z" fill="#0F0E1B" stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" /></svg>
+            </div>
+
+            {/* a seta que flui pro CliniSac (vira pra baixo no celular) */}
+            <div className="lp-arrow" aria-hidden="true">
+              <svg viewBox="0 0 110 60"><path d="M4 30 C 40 30, 60 30, 94 30" /><polygon points="90,20 108,30 90,40" /></svg>
+            </div>
+
+            {/* tudo em um: os mesmos 4 itens, calmos, entrando em sequência */}
+            <div className="lp-one">
+              <div className="lp-one-bar"><img src="/clinisac-logo.svg" alt="" /><span>tudo em um</span></div>
+              <div className="lp-one-rows">
+                {[
+                  ['#16A34A', 'WhatsApp e Instagram numa caixa só'],
+                  ['#2563EB', 'Agenda com lembrete e confirmação'],
+                  ['#F59E0B', 'Financeiro que nasce da consulta'],
+                  ['#7C3AED', 'CRM com funil e follow-up'],
+                ].map(([c, t]) => (
+                  <div className="lp-one-row" key={t}>
+                    <i className="lp-one-dot" style={{ background: c }} />{t}
+                    <span className="lp-one-chk"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M20 6 9 17l-5-5" /></svg></span>
+                  </div>
+                ))}
+              </div>
+              <div className="lp-one-cap">Um login, um painel, tudo conversando.</div>
+            </div>
           </div>
+
+          <p className="lp-scene-note">Antes: <b>4 sistemas, 4 abas, 4 logins</b> · Depois: <b>um painel</b>.</p>
         </div>
       </section>
 
