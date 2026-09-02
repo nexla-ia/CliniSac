@@ -1144,6 +1144,7 @@ export default function CompanyConversations() {
                 poll_selectable_count: row.poll_selectable_count || null,
                 delivered_at: row.delivered_at || null,
                 read_at: row.read_at || null,
+                send_error_at: row.send_error_at || null,
                 type: getMessageType(row),
                 content: getMessageContent(row),
                 base64: row.base64 || null,
@@ -1184,6 +1185,7 @@ export default function CompanyConversations() {
                 ...m, apagada: !!row.apagada, reaction: row.reaction || null,
                 poll_votes: row.poll_votes || null, poll_options: row.poll_options || m.poll_options,
                 delivered_at: row.delivered_at || null, read_at: row.read_at || null,
+                send_error_at: row.send_error_at || null,
               }
             : m))
         }
@@ -1253,6 +1255,7 @@ export default function CompanyConversations() {
             poll_selectable_count: r.poll_selectable_count || null,
             delivered_at: r.delivered_at || null,
             read_at: r.read_at || null,
+            send_error_at: r.send_error_at || null,
             type: getMessageType(r),
             content: getMessageContent(r),
             base64: r.base64 || null,
@@ -1298,6 +1301,7 @@ export default function CompanyConversations() {
         poll_selectable_count: r.poll_selectable_count || null,
         delivered_at: r.delivered_at || null,
         read_at: r.read_at || null,
+        send_error_at: r.send_error_at || null,
         type: getMessageType(r),
         content: getMessageContent(r),
         base64: r.base64 || null,
@@ -2230,6 +2234,7 @@ export default function CompanyConversations() {
       poll_selectable_count: r.poll_selectable_count || null,
       delivered_at: r.delivered_at || null,
       read_at: r.read_at || null,
+      send_error_at: r.send_error_at || null,
       type: getMessageType(r),
       content: getMessageContent(r),
       base64: r.base64 || null,
@@ -3469,12 +3474,13 @@ export default function CompanyConversations() {
                                 <Trash2 size={10} /> {isCliente ? 'mensagem apagada pelo cliente' : 'mensagem apagada'}
                               </div>
                             )}
-                            {msg.falhou && (
-                              <div style={{ fontSize: 10.5, fontWeight: 700, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, color: isAtendente ? '#FCA5A5' : '#DC2626' }}>
+                            {(msg.falhou || msg.send_error_at) && (
+                              <div style={{ fontSize: 10.5, fontWeight: 700, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, color: isAtendente ? '#FCA5A5' : '#DC2626' }}
+                                title={msg.send_error_at ? `A Evolution reportou erro de entrega às ${formatMsgTime(msg.send_error_at, companyTz)}` : undefined}>
                                 <AlertCircle size={10} /> não entregue no WhatsApp
                               </div>
                             )}
-                            {msg.incerto && !msg.falhou && (
+                            {msg.incerto && !msg.falhou && !msg.send_error_at && (
                               <div style={{ fontSize: 10.5, fontWeight: 700, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, color: isAtendente ? '#FDE68A' : '#D97706' }}
                                 title="A mensagem foi salva e provavelmente enviada, mas o servidor não confirmou. Confira no WhatsApp antes de reenviar.">
                                 <AlertCircle size={10} /> entrega não confirmada
@@ -3529,7 +3535,7 @@ export default function CompanyConversations() {
                         </div>
                       )}
                       {/* Status de entrega/leitura (estilo WhatsApp) — só nas nossas mensagens */}
-                      {!isCliente && !msg.falhou && !msg.apagada && (
+                      {!isCliente && !msg.falhou && !msg.send_error_at && !msg.apagada && (
                         <span
                           title={msg.read_at
                             ? `Lido às ${formatMsgTime(msg.read_at, companyTz)}`

@@ -192,6 +192,8 @@ Sempre com **service_role** (RLS não bloqueia, §0.7/etapa 4).
 
 **Render:** ao lado do horário, só nas mensagens que NÃO são do cliente (`!isCliente`) e que não falharam/foram apagadas. `CheckCheck` cinza = entregue (`delivered_at` setado), `CheckCheck` azul (`#53BDEB`, a cor do WhatsApp) = lido (`read_at` setado), `Check` simples = só enviado. Tooltip mostra o horário exato. Atualiza ao vivo pelo mesmo realtime UPDATE que já existia (apagada/reação/enquete).
 
+**ERROR assíncrono (`20260901_message_send_error.sql`):** o status `0 ERROR` pode chegar bem depois do envio, não só na resposta HTTP do envio em si. Coluna própria `send_error_at timestamptz`, preenchida do mesmo jeito (`COALESCE(send_error_at, now())`, mesma chave `id_mensagem`+`instancia`). Quando setada: some o checkmark de entrega/leitura e acende o aviso vermelho "não entregue no WhatsApp" que já existia pra falha síncrona (`msg.falhou`) — os dois casos (falha na hora vs. falha reportada depois) caem no mesmo indicador visual.
+
 ---
 
 ## 2. Grupos — recursos WhatsApp
