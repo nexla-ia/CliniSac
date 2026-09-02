@@ -987,37 +987,55 @@ function AtendimentoTab({ msgs, convs, atts, range, period, loading }) {
 function EquipeTab({ msgs, convs, atts, users, sectors, sectorMembers, range, period, loading }) {
   const { from, to } = range
 
+  // attendances só guarda quem tá atendendo AGORA (a linha some quando o
+  // ticket fecha) — não dá pra reconstruir "finalizados por atendente" só
+  // com ela. conversations.closed_by_* (gravado no fechamento, migration
+  // 20260902) resolve isso pra tickets fechados dali pra frente.
+  const closedInPeriod = useMemo(() => convs.filter(c => inPeriod(c.closed_at, from, to)), [convs, from, to])
+
   // Ranking atendentes
   const ranking = useMemo(() => {
     return users.map(u => {
-      const myMsgs = msgs.filter(x => (x.type || '').toLowerCase() === 'atendente' && inPeriod(x.created_at, from, to))
-      // Filtrar mensagens do próprio atendente (assumimos que mensagens com type=atendente foram enviadas por algum atendente,
-      // e a atribuição vem das attendances; usamos email como liga)
-      const myAtts = atts.filter(a => a.attendant_email === u.email)
-      const myAttsInPeriod = myAtts.filter(a => inPeriod(a.assumed_at, from, to))
-      const myClosedSet = new Set(myAtts.map(a => a.numero))
-      const myConvs = convs.filter(c => myClosedSet.has(c.session_id) && inPeriod(c.closed_at, from, to))
-      // Mensagens enviadas pelo atendente: assumimos pela proximidade temporal de suas attendances
-      const myNumeros = new Set(myAtts.map(a => a.numero))
-      const sentMsgs = myMsgs.filter(m => myNumeros.has(m.numero)).length
+      // "Msgs": casa pelo nome de quem mandou (mensagens_geral.nome), não
+      // pela atribuição atual em attendances — mais direto e sobrevive ao
+      // ticket já ter fechado.
+      const sentMsgs = msgs.filter(x =>
+        (x.type || '').toLowerCase() === 'atendente' &&
+        inPeriod(x.created_at, from, to) &&
+        (x.nome || '').trim().toLowerCase() === (u.name || '').trim().toLowerCase()
+      ).length
+      // "Finalizados": tickets fechados no período com closed_by_email dele.
+      const myClosed = closedInPeriod.filter(c => c.closed_by_email === u.email)
+      // "Tickets": finalizados + os que ele ainda tem em aberto agora, assumidos
+      // no período (esses dois conjuntos não se sobrepõem — se ainda tá aberto,
+      // não pode estar fechado). Ainda não cobre um ticket assumido E fechado
+      // no mesmo período por ele — isso só um log de "assumiu" resolveria.
+      const stillOpenInPeriod = atts.filter(a => a.attendant_email === u.email && inPeriod(a.assumed_at, from, to))
       return {
         id: u.id, name: u.name, email: u.email,
-        tickets: myAttsInPeriod.length,
-        finalizados: myConvs.length,
+        tickets: myClosed.length + stillOpenInPeriod.length,
+        finalizados: myClosed.length,
         mensagens: sentMsgs,
       }
     }).sort((a, b) => b.tickets - a.tickets)
-  }, [users, atts, convs, msgs, from, to])
+  }, [users, atts, closedInPeriod, msgs, from, to])
 
-  // Por setor
+  // Por setor — mesma lógica: soma tickets ainda abertos (assumidos no
+  // período) com os já fechados no período (closed_by_sector_name). Os dois
+  // conjuntos são disjuntos por definição (aberto ≠ fechado), sem risco de
+  // contar o mesmo ticket duas vezes.
   const bySector = useMemo(() => {
     const map = {}
     atts.filter(a => inPeriod(a.assumed_at, from, to)).forEach(a => {
       const k = a.sector_name || 'Sem setor'
       map[k] = (map[k] || 0) + 1
     })
+    closedInPeriod.forEach(c => {
+      if (!c.closed_by_sector_name) return
+      map[c.closed_by_sector_name] = (map[c.closed_by_sector_name] || 0) + 1
+    })
     return Object.entries(map).sort((a, b) => b[1] - a[1])
-  }, [atts, from, to])
+  }, [atts, closedInPeriod, from, to])
 
   const totalAttsInPeriod = bySector.reduce((a, b) => a + b[1], 0)
 

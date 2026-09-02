@@ -461,11 +461,18 @@ function InstagramInbox() {
   async function handleClose() {
     if (!reason || !closeModal) return
     setClosing(true)
+    // Grava quem tava atendendo no momento do fechamento — attendances é
+    // apagada logo abaixo, sem isso não sobra registro de quem finalizou.
+    const att = attendancesMap[closeModal.session_id]
     const { error } = await supabase.from('conversations').insert({
       session_id: closeModal.session_id,
       instancia: instance,
       reason,
       closed_at: new Date().toISOString(),
+      closed_by_email: att?.attendant_email || null,
+      closed_by_name: att?.attendant_name || null,
+      closed_by_sector_id: att?.sector_id || null,
+      closed_by_sector_name: att?.sector_name || null,
     })
     setClosing(false)
     if (error) return

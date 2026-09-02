@@ -2362,8 +2362,20 @@ export default function CompanyConversations() {
     if (!ids.length) return
     setClosing(true)
     const nowISO = new Date().toISOString()
+    // Grava quem tava atendendo no momento do fechamento — attendances é
+    // apagada logo abaixo, sem isso não sobra registro de quem finalizou
+    // (o ranking de atendentes em Métricas depende disso).
     const { error } = await supabase.from('conversations').upsert(
-      ids.map(sid => ({ session_id: sid, instancia: instance, reason, closed_at: nowISO })),
+      ids.map(sid => {
+        const att = attendancesMap[sid]
+        return {
+          session_id: sid, instancia: instance, reason, closed_at: nowISO,
+          closed_by_email: att?.attendant_email || null,
+          closed_by_name: att?.attendant_name || null,
+          closed_by_sector_id: att?.sector_id || null,
+          closed_by_sector_name: att?.sector_name || null,
+        }
+      }),
       { onConflict: 'session_id,instancia' }
     )
     if (error) { setClosing(false); return }
