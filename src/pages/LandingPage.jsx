@@ -16,10 +16,10 @@ const Star = () => (
 )
 
 const solutions = [
-  'Caixa unificada: WhatsApp e Instagram na mesma tela',
-  'IA que responde e qualifica o lead na hora, 24/7',
-  'Agenda, prontuário e financeiro conversando de ponta a ponta',
-  'Funil de vendas que cobra o follow-up no dia certo',
+  'WhatsApp e Instagram numa caixa só — não em abas soltas',
+  'Agenda com lembrete e confirmação automática, sem disparador à parte',
+  'Financeiro que nasce da consulta, sem planilha do lado',
+  'CRM com funil e follow-up cobrado no dia certo',
 ]
 
 const steps = [
@@ -172,8 +172,8 @@ export default function LandingPage() {
         <div className="lp-wrap lp-split">
           <div className="lp-head">
             <span className="lp-kicker">Seu problema, nossa solução</span>
-            <h2>Chega de WhatsApp Web aberto, agenda de papel e planilha do lado</h2>
-            <p>Com o CliniSac a recepção opera com clareza e o gestor enxerga tudo — do primeiro “oi” ao pagamento.</p>
+            <h2>Uma clínica não deveria precisar de cinco sistemas abertos</h2>
+            <p>WhatsApp Web num canto, o sistema de agenda em outro, o financeiro num terceiro, o disparador de mensagens num quarto — cada um cobrando à parte e nenhum conversando com o outro. O CliniSac junta tudo num painel só.</p>
           </div>
           <div className="lp-solutions">
             {solutions.map((s, i) => (
