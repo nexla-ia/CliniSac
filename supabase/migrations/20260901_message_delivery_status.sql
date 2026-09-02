@@ -1,32 +1,71 @@
 -- ==============================================================
 -- Status de entrega/leitura da mensagem (estilo WhatsApp: ✓ / ✓✓ / ✓✓ azul)
 --
--- Hoje só sabemos que uma mensagem foi "enviada" (existe em
--- mensagens_geral). Isso guarda quando ela foi ENTREGUE e LIDA de
--- verdade no aparelho do paciente — útil pra saber se um lembrete ou
--- cobrança realmente chegou, não só se o envio "não deu erro".
+-- O QUE RESOLVE
+--   Hoje só se sabe que uma mensagem foi "enviada" (existe a linha em
+--   mensagens_geral). Não dá pra saber se ela realmente CHEGOU no
+--   aparelho do paciente, nem se ele ABRIU e LEU. Isso importa muito
+--   pra lembrete e cobrança — "não confirmou" pode ser "não recebeu"
+--   ou "recebeu, leu e ignorou", e são casos bem diferentes pra
+--   recepção agir.
 --
--- Colunas novas em mensagens_geral (mesma tabela central, sem tabela
--- nova):
+-- COLUNAS NOVAS em mensagens_geral (mesma tabela central de sempre,
+-- não cria tabela nova):
 --   delivered_at   timestamptz — quando a Evolution confirmou entrega
 --   read_at        timestamptz — quando o contato abriu/leu
+-- As duas ficam NULL até o evento correspondente chegar. NULL nas
+-- duas = só "enviado" (não se sabe mais que isso ainda).
 --
--- Quem preenche isso é o n8n, escutando o evento messages.update da
--- Evolution (dispara quando o status muda: enviado → entregue → lido).
--- Casa pela mesma chave que já existe pro resto do app:
--- (id_mensagem, instancia) — já tem índice único
--- (mensagens_geral_id_mensagem_instancia_unique).
+-- QUEM PREENCHE
+--   O n8n, escutando o evento "messages.update" da Evolution — ele
+--   dispara toda vez que o status de uma mensagem muda (diferente do
+--   "messages.upsert", que é só quando a mensagem é criada/editada).
 --
--- Baileys/Evolution manda o status como número (WAMessageStatus):
---   0 ERROR, 1 PENDING, 2 SERVER_ACK (enviado), 3 DELIVERY_ACK
---   (entregue), 4 READ (lido), 5 PLAYED (áudio ouvido)
--- O n8n só precisa fazer, quando status >= 3:
---   UPDATE mensagens_geral SET delivered_at = COALESCE(delivered_at, now())
+--   Baileys/Evolution manda o status como número (WAMessageStatus):
+--     0 ERROR
+--     1 PENDING
+--     2 SERVER_ACK     (chegou no servidor do WhatsApp = "enviado")
+--     3 DELIVERY_ACK   (chegou no aparelho do contato = "entregue")
+--     4 READ           (contato abriu a conversa = "lido")
+--     5 PLAYED         (caso especial: áudio ouvido)
+--
+--   Casa pela mesma chave já usada em todo o resto do app pra
+--   identificar uma mensagem: (id_mensagem, instancia) — já tem
+--   índice único (mensagens_geral_id_mensagem_instancia_unique,
+--   migration 20260611). Sempre com a service_role key (RLS não
+--   bloqueia, mas de qualquer forma é o n8n rodando server-side).
+--
+--   SQL que o node do n8n deve rodar (o COALESCE é de propósito: só
+--   grava a primeira vez que o evento chegar, nunca sobrescreve um
+--   horário já registrado com um evento repetido/fora de ordem):
+--
+--     -- quando status >= 3 (entregue)
+--     UPDATE mensagens_geral
+--     SET delivered_at = COALESCE(delivered_at, now())
 --     WHERE id_mensagem = '<key.id>' AND instancia = '<instancia>';
--- e quando status >= 4 (ou 5), a mesma coisa pra read_at. Sempre com
--- service_role (RLS não bloqueia).
 --
--- Idempotente. Cole no SQL Editor do Supabase.
+--     -- quando status >= 4 (lido — Baileys manda READ mesmo que
+--     -- DELIVERY_ACK não tenha chegado antes por algum motivo, então
+--     -- vale gravar delivered_at junto se ainda estiver nulo)
+--     UPDATE mensagens_geral
+--     SET read_at = COALESCE(read_at, now()),
+--         delivered_at = COALESCE(delivered_at, now())
+--     WHERE id_mensagem = '<key.id>' AND instancia = '<instancia>';
+--
+-- COMO O FRONT MOSTRA (CompanyConversations.jsx, já pronto — não
+-- precisa mexer em mais nada além de rodar isso e ligar o n8n)
+--   Ao lado do horário de CADA mensagem que NÃO é do cliente
+--   (mensagem da clínica/IA, não a que o paciente mandou):
+--     nem delivered_at nem read_at         → ✓  cinza  ("enviado")
+--     delivered_at preenchido, sem read_at → ✓✓ cinza  ("entregue")
+--     read_at preenchido                   → ✓✓ AZUL (#53BDEB, cor
+--                                             oficial do WhatsApp) —
+--                                             ("lido")
+--   Tooltip no ícone mostra o horário exato. Atualiza sozinho na tela
+--   (realtime UPDATE em mensagens_geral, já assinado) — sem F5.
+--
+-- Idempotente — pode colar de novo sem problema. Cole no SQL Editor
+-- do Supabase.
 -- ==============================================================
 
 SET search_path TO public;
