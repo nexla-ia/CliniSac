@@ -235,7 +235,7 @@ export default function LandingPage() {
                   ))}
                 </div>
               </div>
-              <div className="lp-feat-body"><h3>CRM com funil de vendas</h3><p>Kanban de leads e orçamentos: nada esquecido, temperatura do lead à vista, follow-up cobrado.</p></div>
+              <div className="lp-feat-body"><h3>CRM com funis do seu jeito</h3><p>Monte quantos funis quiser, do jeito da sua operação. Kanban de leads e orçamentos, temperatura do lead à vista e follow-up cobrado no dia certo.</p></div>
             </article>
 
             <article className="lp-feat">
@@ -289,7 +289,7 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
-              <div className="lp-feat-body"><h3>Métricas em tempo real</h3><p>Atendimentos, agendamentos, equipe e faturamento em dashboards sempre atualizados.</p></div>
+              <div className="lp-feat-body"><h3>Métricas em tempo real</h3><p>Tempo médio de atendimento, agendamentos, faturamento, desempenho da equipe e o retorno de cada campanha — em dashboards sempre atualizados.</p></div>
             </article>
 
           </div>
@@ -311,14 +311,14 @@ export default function LandingPage() {
               <p>O sistema chama o paciente no WhatsApp pra confirmar a consulta e atualiza a agenda com a resposta — menos faltas, sem a recepção ligar.</p>
             </article>
             <article className="lp-auto">
-              <span className="lp-auto-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0E1B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9 9 0 0 0-6.4 2.6L3 8" /><path d="M3 3v5h5" /></svg></span>
-              <h3>Follow-up pós-consulta</h3>
-              <p>Marcou a consulta como concluída? O sistema entra em contato pra saber como foi — cuidado que o paciente sente e que traz ele de volta.</p>
+              <span className="lp-auto-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0E1B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11.5 3.3a.5.5 0 0 1 .9 0l2.3 4.6 5.1.7a.5.5 0 0 1 .3.9l-3.7 3.6.9 5.1a.5.5 0 0 1-.8.5L12 16.9l-4.6 2.4a.5.5 0 0 1-.8-.5l.9-5.1L3.8 9.5a.5.5 0 0 1 .3-.9l5.1-.7z" /></svg></span>
+              <h3>Follow-up e avaliação</h3>
+              <p>Depois da consulta, o sistema pergunta como foi. E, todo mês, envia a pesquisa de satisfação com o link do seu Google Meu Negócio — paciente feliz vira avaliação 5 estrelas.</p>
             </article>
             <article className="lp-auto">
-              <span className="lp-auto-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0E1B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11.5 3.3a.5.5 0 0 1 .9 0l2.3 4.6 5.1.7a.5.5 0 0 1 .3.9l-3.7 3.6.9 5.1a.5.5 0 0 1-.8.5L12 16.9l-4.6 2.4a.5.5 0 0 1-.8-.5l.9-5.1L3.8 9.5a.5.5 0 0 1 .3-.9l5.1-.7z" /></svg></span>
-              <h3>Pesquisa de satisfação</h3>
-              <p>Envio automático da pesquisa de satisfação com o link do seu Google Meu Negócio — transforma paciente feliz em avaliação 5 estrelas.</p>
+              <span className="lp-auto-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0E1B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2M12 2h.01M5 4 3 6M19 4l2 2" /></svg></span>
+              <h3>Recall por procedimento</h3>
+              <p>Você escolhe, por procedimento, depois de quanto tempo o paciente recebe um "já é hora de voltar?". A cadeira enche sozinha, sem ninguém garimpar a base.</p>
             </article>
             <article className="lp-auto">
               <span className="lp-auto-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0E1B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="m7 14 4-4 3 3 5-6" /></svg></span>
