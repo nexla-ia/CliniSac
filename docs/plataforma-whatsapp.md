@@ -178,17 +178,22 @@ ALTER TABLE mensagens_geral ADD COLUMN IF NOT EXISTS delivered_at timestamptz;
 ALTER TABLE mensagens_geral ADD COLUMN IF NOT EXISTS read_at timestamptz;
 ```
 
-**Quem preenche:** o n8n, escutando `messages.update` da Evolution (dispara toda vez que o status muda). Baileys manda o status como número (`WAMessageStatus`): `0 ERROR`, `1 PENDING`, `2 SERVER_ACK` (enviado), `3 DELIVERY_ACK` (entregue), `4 READ` (lido), `5 PLAYED` (áudio ouvido). Casa pela mesma chave já usada no resto do app — `(id_mensagem, instancia)`, que já tem índice único (§6):
+**Quem preenche:** o n8n, escutando `messages.update` da Evolution (dispara toda vez que o status muda). ⚠️ Na prática a Evolution manda o status como **texto** (`"READ"`, `"DELIVERY_ACK"`, `"ERROR"`...), não como número — apesar do Baileys internamente usar `WAMessageStatus` numérico (0 ERROR, 1 PENDING, 2 SERVER_ACK/enviado, 3 DELIVERY_ACK/entregue, 4 READ/lido, 5 PLAYED/áudio ouvido), o webhook da Evolution já entrega o nome. Compara por **string**, não por `>=` número.
+
+O status decide **qual coluna** atualizar — ele não é o *valor* gravado (isso já causou erro real: `invalid input syntax for type timestamp... "READ"`, alguém mapeou o status direto pro campo de timestamp). O valor gravado é sempre a hora atual. Precisa de um **Switch/IF no n8n** antes do update, testando `{{ $json.body.data.status }}`:
 
 ```sql
--- quando status >= 3
+-- status = 'DELIVERY_ACK'
 UPDATE mensagens_geral SET delivered_at = COALESCE(delivered_at, now())
   WHERE id_mensagem = '<key.id>' AND instancia = '<instancia>';
--- quando status >= 4
-UPDATE mensagens_geral SET read_at = COALESCE(read_at, now())
+-- status = 'READ' (quem leu, entregou — atualiza os dois)
+UPDATE mensagens_geral SET read_at = COALESCE(read_at, now()), delivered_at = COALESCE(delivered_at, now())
+  WHERE id_mensagem = '<key.id>' AND instancia = '<instancia>';
+-- status = 'ERROR' — ver 20260901_message_send_error.sql
+UPDATE mensagens_geral SET send_error_at = COALESCE(send_error_at, now())
   WHERE id_mensagem = '<key.id>' AND instancia = '<instancia>';
 ```
-Sempre com **service_role** (RLS não bloqueia, §0.7/etapa 4).
+Casa pela mesma chave já usada no resto do app — `(id_mensagem, instancia)`, que já tem índice único (§6). Sempre com **service_role** (RLS não bloqueia, §0.7/etapa 4).
 
 **Render:** ao lado do horário, só nas mensagens que NÃO são do cliente (`!isCliente`) e que não falharam/foram apagadas. `CheckCheck` cinza = entregue (`delivered_at` setado), `CheckCheck` azul (`#53BDEB`, a cor do WhatsApp) = lido (`read_at` setado), `Check` simples = só enviado. Tooltip mostra o horário exato. Atualiza ao vivo pelo mesmo realtime UPDATE que já existia (apagada/reação/enquete).
 
