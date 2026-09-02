@@ -669,7 +669,7 @@ function OverviewTab({ msgs, convs, atts, appts, alerts, kanbanCards, range, per
       if (!x.numero) return
       if (!byNumero[x.numero]) byNumero[x.numero] = { ia: 0, humano: 0 }
       const t = (x.type || '').toLowerCase()
-      if (t === 'ia') byNumero[x.numero].ia++
+      if (t === 'ia' || t === 'bot') byNumero[x.numero].ia++
       if (t === 'atendente' || t === 'humano') byNumero[x.numero].humano++
     })
     let soIa = 0, comHumano = 0, semAtend = 0
@@ -798,7 +798,7 @@ function AtendimentoTab({ msgs, convs, atts, range, period, loading }) {
         const t0 = new Date(sMsgs[firstCliIdx].created_at).getTime()
         // Filtra só msgs no período pra alinhar com filtro de tempo
         if (inPeriod(sMsgs[firstCliIdx].created_at, from, to) || (!from && !to)) {
-          const fIa = sMsgs.slice(firstCliIdx + 1).find(m => (m.type || '').toLowerCase() === 'ia')
+          const fIa = sMsgs.slice(firstCliIdx + 1).find(m => ['ia', 'bot'].includes((m.type || '').toLowerCase()))
           const fHu = sMsgs.slice(firstCliIdx + 1).find(m => ['atendente', 'humano'].includes((m.type || '').toLowerCase()))
           if (fIa) firstIaMs = new Date(fIa.created_at).getTime() - t0
           if (fHu) firstHumanMs = new Date(fHu.created_at).getTime() - t0
@@ -873,8 +873,15 @@ function AtendimentoTab({ msgs, convs, atts, range, period, loading }) {
   }, [msgs, from, to])
 
   // % tickets que viraram atendimento humano
+  // attendances é apagada no fechamento (api_conversation_close e o handler de
+  // fechar no front fazem DELETE) — não dá pra checar essa tabela pra ticket já
+  // fechado, sempre bateria 0. Usa as mensagens da própria sessão em vez disso:
+  // se algum atendente/humano mandou mensagem ali, o ticket passou por humano.
   const numTicketsClosed = closedInPeriod.length
-  const closedHadAtt = closedInPeriod.filter(c => atts.some(a => a.numero === c.session_id)).length
+  const closedHadAtt = closedInPeriod.filter(c => {
+    const sMsgs = msgsByNumero[c.session_id] || []
+    return sMsgs.some(m => ['atendente', 'humano'].includes((m.type || '').toLowerCase()))
+  }).length
   const taxaHumano = numTicketsClosed ? Math.round((closedHadAtt / numTicketsClosed) * 100) : 0
 
   // Auto-encerrados
