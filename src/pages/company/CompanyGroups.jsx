@@ -57,6 +57,29 @@ function formatTime(ts, tz) {
   return `${String(loc.getUTCDate()).padStart(2, '0')}/${String(loc.getUTCMonth() + 1).padStart(2, '0')} ${hhmm}`
 }
 
+// "Hoje" / "Ontem" / "DD/MM/AAAA" pro divisor de data entre mensagens —
+// mesma lógica de CompanyConversations.jsx, no fuso da clínica.
+function formatDateDivider(ts, tz) {
+  if (!ts) return ''
+  const t = new Date(ts)
+  if (isNaN(t)) return ''
+  const off = tzOffsetMinutes(tz) * 60000
+  const loc = new Date(t.getTime() + off)
+  const nowLoc = new Date(Date.now() + off)
+  const sameDay = (a, b) => a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate()
+  if (sameDay(loc, nowLoc)) return 'Hoje'
+  if (sameDay(loc, new Date(nowLoc.getTime() - 86400000))) return 'Ontem'
+  return `${String(loc.getUTCDate()).padStart(2, '0')}/${String(loc.getUTCMonth() + 1).padStart(2, '0')}/${loc.getUTCFullYear()}`
+}
+function dayKeyTz(ts, tz) {
+  if (!ts) return ''
+  const t = new Date(ts)
+  if (isNaN(t)) return ''
+  const off = tzOffsetMinutes(tz) * 60000
+  const loc = new Date(t.getTime() + off)
+  return `${loc.getUTCFullYear()}-${loc.getUTCMonth()}-${loc.getUTCDate()}`
+}
+
 // ── Contato compartilhado (vCard do WhatsApp) ───────────────────────────────
 function parseVCard(vcard) {
   const lines = String(vcard || '').split(/\r?\n/)
@@ -1623,10 +1646,12 @@ export default function CompanyGroups() {
                   Carregando mensagens…
                 </div>
               )}
-              {messages.map(msg => {
+              {messages.map((msg, msgIdx) => {
                 const type = (msg.type || '').toLowerCase()
                 const isAtendente = type === 'atendente' || type === 'humano'
                 const ts = parseTs(msg)
+                const prevTs = msgIdx > 0 ? parseTs(messages[msgIdx - 1]) : null
+                const showDateDivider = ts && dayKeyTz(ts, companyTz) !== (prevTs ? dayKeyTz(prevTs, companyTz) : null)
                 const media = detectMedia(msg.base64)
                 // Legenda da mídia: tira o prefixo "🖼️ arquivo" / "🎤 Áudio" / etc.,
                 // deixando só o texto que a pessoa escreveu junto (a legenda). Em
@@ -1642,7 +1667,19 @@ export default function CompanyGroups() {
                 const contactOnly = cards.length > 0 && contactLabelOnly && !media
                 const locationOnly = !!loc && locationLabelOnly && !media && cards.length === 0
                 return (
-                  <div key={msg.id} data-msg-id={msg.id_mensagem || undefined} data-db-id={msg.id} className={`msg-row ${isAtendente ? 'client' : 'ai'}`}>
+                  <div key={msg.id}>
+                    {showDateDivider && (
+                      <div style={{ display: 'flex', justifyContent: 'center', margin: '14px 0 10px' }}>
+                        <div style={{
+                          background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                          borderRadius: 14, padding: '4px 14px', fontSize: 11.5, fontWeight: 600,
+                          color: 'var(--text-muted)', boxShadow: '0 1px 2px rgba(15,23,42,0.06)',
+                        }}>
+                          {formatDateDivider(ts, companyTz)}
+                        </div>
+                      </div>
+                    )}
+                    <div data-msg-id={msg.id_mensagem || undefined} data-db-id={msg.id} className={`msg-row ${isAtendente ? 'client' : 'ai'}`}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: isAtendente ? 'flex-end' : 'flex-start', maxWidth: editingMsgId === msg.id ? '94%' : '70%' }}>
                       {!isAtendente && (
                         <span
@@ -1943,6 +1980,7 @@ export default function CompanyGroups() {
                           </button>
                         )}
                       </div>
+                    </div>
                     </div>
                   </div>
                 )
