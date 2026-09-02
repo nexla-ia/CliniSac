@@ -80,7 +80,6 @@ export default function LandingPage() {
       {/* HERO */}
       <header className="lp-wrap lp-hero">
         <div className="lp-hero-copy">
-          <span className="lp-pill"><span className="lp-pulse" />Atendimento e gestão numa plataforma só</span>
           <h1>A clínica inteira — do primeiro contato ao <span className="serif hot">retorno do paciente</span>.</h1>
           <p className="lp-hero-sub">WhatsApp e Instagram, agenda com confirmação automática, CRM, prontuário, financeiro e métricas — integrados num painel só. A IA atende junto quando você quer; e desliga quando não quer.</p>
           <div className="lp-hero-ctas">
