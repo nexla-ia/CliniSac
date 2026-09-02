@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../context/AuthContext'
 import { X, Eye, EyeOff, Loader2, KeyRound, CheckCircle2 } from 'lucide-react'
 
@@ -35,7 +36,7 @@ export default function ChangePasswordModal({ onClose }) {
   }
   const labelStyle = { fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5, display: 'block' }
 
-  return (
+  return createPortal(
     <div onClick={onClose} style={{
       position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.45)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
@@ -119,5 +120,5 @@ export default function ChangePasswordModal({ onClose }) {
         )}
       </div>
     </div>
-  )
+  , document.body)
 }
