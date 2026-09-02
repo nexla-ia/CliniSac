@@ -205,6 +205,7 @@ export default function CompanyGroups() {
   const { session } = useAuth()
   const navigate = useNavigate()
   const instance = session?.company?.instance
+  const contactsTable = session?.company?.contacts_table
   const companyTz = session?.company?.timezone || '-03:00'
   const apiInstancia = session?.company?.api_instancia
   const instanceOwner = session?.company?.numero_base || null
@@ -247,6 +248,7 @@ export default function CompanyGroups() {
   const [savingContact, setSavingContact] = useState(null)
   const [savedContact, setSavedContact] = useState(null)
   const [savedContacts, setSavedContacts] = useState({}) // numero (dígitos) → linha de saved_contacts
+  const [clientesMap, setClientesMap] = useState({}) // numero (dígitos) → linha da tabela legada de clientes (contacts_table)
   const [memberMenu, setMemberMenu] = useState(null)   // { x, y, numero, nome } — menu ao clicar no nome no thread
   const [confirmDelMsg, setConfirmDelMsg] = useState(null) // mensagem a apagar (confirmação)
   const [lightbox, setLightbox] = useState(null)       // src da imagem em tela cheia
@@ -330,6 +332,20 @@ export default function CompanyGroups() {
       .subscribe()
     return () => supabase.removeChannel(ch)
   }, [instance])
+
+  // Carrega a tabela legada de clientes (contacts_table, por empresa) — fallback
+  // de nome/foto quando o número não está em saved_contacts. Mesma fonte que
+  // CompanyConversations.jsx usa pra resolver nome/avatar no cabeçalho da conversa.
+  useEffect(() => {
+    if (!instance || !contactsTable) return
+    supabase.from(contactsTable).select('numero, nome, foto').eq('instancia', instance)
+      .then(({ data }) => {
+        if (!data) return
+        const map = {}
+        data.forEach(c => { if (c.numero) map[c.numero.replace(/\D/g, '')] = c })
+        setClientesMap(map)
+      })
+  }, [instance, contactsTable])
 
   // Carrega leituras do usuário atual
   useEffect(() => {
@@ -1580,8 +1596,11 @@ export default function CompanyGroups() {
                       const isAdmin = !!m.admin
                       const isSuperAdmin = m.admin === 'superadmin'
                       const isActive = activeMember === numero
-                      const known = savedContacts[numero] || null
-                      const knownPhoto = toImgSrc(known?.photo)
+                      const savedRow = savedContacts[numero] || null
+                      const clienteRow = clientesMap[numero] || null
+                      const knownNome = savedRow?.nome || clienteRow?.nome || null
+                      const known = knownNome ? { nome: knownNome } : null
+                      const knownPhoto = toImgSrc(savedRow?.photo) || toImgSrc(clienteRow?.foto)
                       return (
                         <div key={i} style={{ borderBottom: '1px solid #F8FAFC' }}>
                           <div
