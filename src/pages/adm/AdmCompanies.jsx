@@ -33,7 +33,7 @@ const emptyUser = { name: '', email: '', password: '' }
 
 function trialExpiryDate() {
   const d = new Date()
-  d.setDate(d.getDate() + 14)
+  d.setDate(d.getDate() + 7)
   return d
 }
 function fmtDateInput(d) {
@@ -330,7 +330,7 @@ export default function AdmCompanies() {
                   fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
                   color: '#0891B2', marginBottom: 10,
                 }}>
-                  <Zap size={9} /> Plano Trial — 14 dias grátis
+                  <Zap size={9} /> Plano Trial — 7 dias grátis
                 </div>
                 <div style={{ fontWeight: 700, fontSize: 17, color: '#fff' }}>
                   Cadastrar empresa no trial
@@ -358,7 +358,7 @@ export default function AdmCompanies() {
                 <Clock size={16} style={{ color: '#0891B2', flexShrink: 0 }} />
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.85)', marginBottom: 2 }}>
-                    14 dias de acesso completo
+                    7 dias de acesso completo
                   </div>
                   <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
                     Após o período, a empresa é bloqueada automaticamente pelo sistema de billing. Sem cobrança durante o trial.
@@ -461,7 +461,7 @@ export default function AdmCompanies() {
               }}>
                 {[
                   { label: 'Plano', value: 'Trial', color: '#0891B2' },
-                  { label: 'Duração', value: '14 dias', color: '#7C3AED' },
+                  { label: 'Duração', value: '7 dias', color: '#7C3AED' },
                   { label: 'Valor', value: 'R$ 0,00', color: '#16A34A' },
                 ].map(item => (
                   <div key={item.label} style={{
