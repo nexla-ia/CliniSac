@@ -601,3 +601,39 @@
   .lp-node-ic { border-color: var(--ia-green); } .lp-node-ic svg { stroke: var(--ia-green); }
   .lp-cycle { opacity: 1; }
 }
+
+/* ═══ pra quem é — identidade por especialidade ═════════════════════════ */
+.lp-icps { align-items: stretch; }
+.lp-icp {
+  position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 12px;
+  padding: 28px; background: #fff; border: 1px solid var(--line); border-radius: 18px;
+  opacity: 0; transform: translateY(16px);
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.lp-icps.alive .lp-icp { animation: lpRise .6s cubic-bezier(.2,.7,.2,1) forwards; }
+.lp-icps.alive .lp-icp:nth-child(1) { animation-delay: .05s; }
+.lp-icps.alive .lp-icp:nth-child(2) { animation-delay: .16s; }
+.lp-icps.alive .lp-icp:nth-child(3) { animation-delay: .27s; }
+.lp-icp:hover { transform: translateY(-6px); border-color: color-mix(in srgb, var(--spec) 45%, var(--line)); box-shadow: 0 22px 46px -24px color-mix(in srgb, var(--spec) 55%, transparent); }
+/* glifo marca-d'água no canto */
+.lp-icp-glyph { position: absolute; right: -18px; bottom: -22px; width: 150px; height: 150px; color: var(--spec); opacity: .06; pointer-events: none; transition: transform .35s cubic-bezier(.2,.7,.2,1), opacity .2s ease; }
+.lp-icp:hover .lp-icp-glyph { transform: rotate(-8deg) scale(1.08); opacity: .1; }
+/* tile do ícone */
+.lp-icp-ic { width: 46px; height: 46px; border-radius: 13px; display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--spec) 14%, #fff); border: 1px solid color-mix(in srgb, var(--spec) 30%, var(--line)); position: relative; z-index: 1; }
+.lp-icp-ic svg { stroke: var(--spec); }
+.lp-icp-tag { color: var(--spec); position: relative; z-index: 1; }
+.lp-icp h3, .lp-icp p { position: relative; z-index: 1; }
+/* barra-gradiente que entra no hover */
+.lp-icp::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--grad-brand); transform: scaleX(0); transform-origin: left; transition: transform .3s ease; }
+.lp-icp:hover::after { transform: scaleX(1); }
+
+/* convite pra outras especialidades */
+.lp-icp-more { margin-top: 22px; display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;
+  text-align: center; background: var(--surface); border: 1px dashed var(--line-2); border-radius: 16px; padding: 20px 24px; }
+.lp-icp-more p { font-size: 15px; color: var(--ink-2); margin: 0; }
+.lp-icp-more b { color: var(--ink); font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-icps.alive .lp-icp { animation: none; opacity: 1; transform: none; }
+}

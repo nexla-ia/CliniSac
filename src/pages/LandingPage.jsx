@@ -23,10 +23,17 @@ const steps = [
   { n: '3', title: 'Você acompanha tudo no painel', desc: 'Conversas, funil, agenda, financeiro e métricas num lugar só — com visão do que a equipe e a IA fizeram.' },
 ]
 
+const TOOTH = 'M7 4c-2 0-3.5 1.6-3.5 4 0 1.4.3 2.8.7 4.8.3 1.6.5 3.4 1 4.7.4 1 1.5 1.2 2 .3.4-.7.6-1.9.8-3.3.15-1 .5-1.7 1-1.7s.85.7 1 1.7c.2 1.4.4 2.6.8 3.3.5.9 1.6.7 2-.3.5-1.3.7-3.1 1-4.7.4-2 .7-3.4.7-4.8 0-2.4-1.5-4-3.5-4-1.1 0-1.8.5-2.5 1-.7-.5-1.4-1-2.5-1z'
 const icps = [
-  { tag: 'Odontologia', title: 'Orçamento que não esfria', desc: 'A IA responde na hora, o CRM cobra o follow-up e o lembrete mantém a cadeira cheia.' },
-  { tag: 'Estética', title: 'Lead do Instagram que não some', desc: 'WhatsApp e Instagram na mesma caixa, funil de vendas e agenda — sem planilha do lado.' },
-  { tag: 'Clínicas médicas', title: 'Várias agendas, uma recepção', desc: 'Prontuário, anamnese e financeiro fechando no mesmo painel do atendimento.' },
+  { tag: 'Odontologia', spec: '#0891B2', title: 'Orçamento que não esfria',
+    desc: 'A IA responde na hora, o CRM cobra o follow-up e o lembrete mantém a cadeira cheia.',
+    icon: <path d={TOOTH} /> },
+  { tag: 'Estética', spec: '#DB2777', title: 'Lead do Instagram que não some',
+    desc: 'WhatsApp e Instagram na mesma caixa, funil de vendas e agenda — sem planilha do lado.',
+    icon: <><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z" /><path d="M19 3v4M17 5h4" /></> },
+  { tag: 'Clínicas médicas', spec: '#16A34A', title: 'Várias agendas, uma recepção',
+    desc: 'Prontuário, anamnese e financeiro fechando no mesmo painel do atendimento.',
+    icon: <path d="M22 12h-4l-3 9L9 3l-3 9H2" /> },
 ]
 
 const faqs = [
@@ -66,6 +73,8 @@ export default function LandingPage() {
 
   // Linha do tempo das automações: o pulso só percorre quando ela entra na tela.
   const [journeyRef, journeyInView] = useInView(0.4)
+  // "Pra quem é": cards entram escalonados ao rolar.
+  const [icpsRef, icpsInView] = useInView(0.3)
 
   // Nav: sombra ao rolar e link da seção atual sublinhado (scroll-spy).
   // A sombra usa um sentinela no topo da página em vez de window.scrollY:
@@ -479,10 +488,20 @@ export default function LandingPage() {
             <span className="lp-kicker">Pra quem é</span>
             <h2>Feito pra clínica que atende pelo WhatsApp</h2>
           </div>
-          <div className="lp-icps">
+          <div className={`lp-icps${icpsInView ? ' alive' : ''}`} ref={icpsRef}>
             {icps.map((i, k) => (
-              <div className="lp-icp" key={k}><span className="lp-icp-tag">{i.tag}</span><h3>{i.title}</h3><p>{i.desc}</p></div>
+              <div className="lp-icp" key={k} style={{ '--spec': i.spec }}>
+                <svg className="lp-icp-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{i.icon}</svg>
+                <span className="lp-icp-ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{i.icon}</svg></span>
+                <span className="lp-icp-tag">{i.tag}</span>
+                <h3>{i.title}</h3>
+                <p>{i.desc}</p>
+              </div>
             ))}
+          </div>
+          <div className="lp-icp-more">
+            <p>Fisioterapia, psicologia, veterinária, salão… <b>atende pelo WhatsApp?</b> O CliniSac se adapta.</p>
+            <a href={waUrl} target="_blank" rel="noreferrer" onClick={trackCTA} className="lp-btn lp-btn-ghost lp-btn-sm">Ver se serve pra mim</a>
           </div>
         </div>
       </section>
