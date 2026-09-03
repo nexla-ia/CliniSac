@@ -60,6 +60,10 @@ export default function LandingPage() {
   // Alimenta o painel ADM "Landing Page": origem, UTM, tempo por seção, CTA.
   const { trackCTA } = useLandingAnalytics()
 
+  // Barra de CTA fixa no mobile: aparece quando o CTA do hero sai da tela,
+  // pra não duplicar o botão enquanto o hero está visível.
+  const [heroCtaRef, heroCtaInView] = useInView(0, false, true)
+
   // Nav: sombra ao rolar e link da seção atual sublinhado (scroll-spy).
   // A sombra usa um sentinela no topo da página em vez de window.scrollY:
   // aqui quem rola é o #root (height:100% + overflow no global.css), não a
@@ -124,7 +128,7 @@ export default function LandingPage() {
         <div className="lp-hero-copy">
           <h1>A clínica inteira — do primeiro contato ao <span className="serif hot">retorno do paciente</span>.</h1>
           <p className="lp-hero-sub">WhatsApp e Instagram, agenda com confirmação automática, CRM, prontuário, financeiro e métricas — integrados num painel só. A IA atende junto quando você quer; e desliga quando não quer.</p>
-          <div className="lp-hero-ctas">
+          <div className="lp-hero-ctas" ref={heroCtaRef}>
             <a href={waUrl} target="_blank" rel="noreferrer" onClick={trackCTA} className="lp-btn lp-btn-primary lp-btn-lg">Testar 7 dias grátis</a>
             <a href="#como-funciona" className="lp-btn lp-btn-ghost lp-btn-lg">Ver como funciona</a>
           </div>
@@ -527,6 +531,12 @@ export default function LandingPage() {
           <small>CliniSac © 2026 · Feito no Brasil pra clínicas brasileiras</small>
         </div>
       </footer>
+
+      {/* CTA fixa no mobile */}
+      <div className={`lp-mobile-cta${heroCtaInView ? '' : ' show'}`}>
+        <span className="mc-txt"><b>7 dias grátis</b><span>sem cartão, sem fidelidade</span></span>
+        <a href={waUrl} target="_blank" rel="noreferrer" onClick={trackCTA} className="lp-btn lp-btn-primary lp-btn-sm">Testar agora</a>
+      </div>
 
     </div>
   )
