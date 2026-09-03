@@ -176,7 +176,7 @@ function TicketList({ tickets, loading, onOpenTicket, onNew }) {
         <div className="sw-empty">
           <MessageCircle size={36} />
           <h4>Tudo tranquilo por aqui</h4>
-          <p>Sem chamados abertos. Quando precisar, tá aqui o canal — gente atende, não bot.</p>
+          <p>Sem chamados abertos. Quando precisar, tá aqui o canal. Gente atende, não bot.</p>
         </div>
       ) : (
         <div className="sw-tickets">
@@ -250,7 +250,7 @@ function NewTicketForm({ companyId, userId, userName, onCreated, onCancel }) {
         <label>Conta com calma</label>
         <textarea
           className="sw-textarea"
-          placeholder="Quando começou? O que você tentou? Print ajuda — pode anexar dentro do chat depois."
+          placeholder="Quando começou? O que você tentou? Print ajuda, pode anexar dentro do chat depois."
           rows={6}
           value={message}
           onChange={e => setMessage(e.target.value)}

@@ -19,8 +19,8 @@ const Star = () => (
 
 const steps = [
   { n: '1', title: 'Conecte o WhatsApp da clínica', desc: 'A gente configura junto com você. O número continua o mesmo e, na hora, o sistema já começa a receber as conversas e a alimentar a operação.' },
-  { n: '2', title: 'A equipe atende — e a IA, se você quiser', desc: 'Tudo cai no painel pra sua equipe responder. Ativou a IA? Ela já começa a atender seus pacientes, treinada na sua clínica pra soar como a sua própria secretária.' },
-  { n: '3', title: 'Você acompanha tudo no painel', desc: 'Conversas, funil, agenda, financeiro e métricas num lugar só — com visão do que a equipe e a IA fizeram.' },
+  { n: '2', title: 'A equipe atende, e a IA se você quiser', desc: 'Tudo cai no painel pra sua equipe responder. Ativou a IA? Ela já começa a atender seus pacientes, treinada na sua clínica pra soar como a sua própria secretária.' },
+  { n: '3', title: 'Você acompanha tudo no painel', desc: 'Conversas, funil, agenda, financeiro e métricas num lugar só, com visão do que a equipe e a IA fizeram.' },
 ]
 
 const TOOTH = 'M7 4c-2 0-3.5 1.6-3.5 4 0 1.4.3 2.8.7 4.8.3 1.6.5 3.4 1 4.7.4 1 1.5 1.2 2 .3.4-.7.6-1.9.8-3.3.15-1 .5-1.7 1-1.7s.85.7 1 1.7c.2 1.4.4 2.6.8 3.3.5.9 1.6.7 2-.3.5-1.3.7-3.1 1-4.7.4-2 .7-3.4.7-4.8 0-2.4-1.5-4-3.5-4-1.1 0-1.8.5-2.5 1-.7-.5-1.4-1-2.5-1z'
@@ -29,7 +29,7 @@ const icps = [
     desc: 'A IA responde na hora, o CRM cobra o follow-up e o lembrete mantém a cadeira cheia.',
     icon: <path d={TOOTH} /> },
   { tag: 'Estética', spec: '#DB2777', title: 'Lead do Instagram que não some',
-    desc: 'WhatsApp e Instagram na mesma caixa, funil de vendas e agenda — sem planilha do lado.',
+    desc: 'WhatsApp e Instagram na mesma caixa, funil de vendas e agenda, sem planilha do lado.',
     icon: <><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z" /><path d="M19 3v4M17 5h4" /></> },
   { tag: 'Clínicas médicas', spec: '#16A34A', title: 'Várias agendas, uma recepção',
     desc: 'Prontuário, anamnese e financeiro fechando no mesmo painel do atendimento.',
@@ -37,14 +37,14 @@ const icps = [
 ]
 
 const faqs = [
-  { q: 'Preciso trocar o número de WhatsApp da clínica?', a: 'Não. O seu número continua o mesmo — a IA entra por trás, sem o paciente perceber. A gente conecta junto com você no dia da configuração.' },
-  { q: 'A IA marca a consulta sozinha?', a: 'Hoje a IA atende o primeiro contato, tira dúvidas e entende o que o paciente precisa — 24 horas por dia. Quem confirma o horário na agenda é a sua equipe. Já estamos evoluindo pra IA agendar de ponta a ponta; a confirmação de presença por WhatsApp já é o primeiro passo.' },
-  { q: 'Consigo assumir a conversa quando eu quiser?', a: 'Sim, a qualquer momento. A IA segura o atendimento e avisa a equipe quando é caso de humano — e você assume com um clique, sem o paciente perder o fio.' },
-  { q: 'E se eu não quiser usar a IA?', a: 'Sem problema. A IA é opcional e pode ficar desligada — aí sua equipe atende tudo manualmente e você segue com a caixa unificada, a agenda, o CRM, o prontuário e o financeiro do mesmo jeito. Se mudar de ideia, é só ligar a IA quando quiser.' },
-  { q: 'A IA é genérica, igual pra todo mundo?', a: 'Não. A gente desenvolve e testa a IA com base na sua clínica — seus procedimentos, seus horários, seu jeito de falar. Ela não é uma IA de prateleira: atende sabendo tudo sobre a sua operação, como se fosse a sua própria secretária.' },
+  { q: 'Preciso trocar o número de WhatsApp da clínica?', a: 'Não. O seu número continua o mesmo. A IA entra por trás, sem o paciente perceber. A gente conecta junto com você no dia da configuração.' },
+  { q: 'A IA marca a consulta sozinha?', a: 'Hoje a IA atende o primeiro contato, tira dúvidas e entende o que o paciente precisa, 24 horas por dia. Quem confirma o horário na agenda é a sua equipe. Já estamos evoluindo pra IA agendar de ponta a ponta; a confirmação de presença por WhatsApp já é o primeiro passo.' },
+  { q: 'Consigo assumir a conversa quando eu quiser?', a: 'Sim, a qualquer momento. A IA segura o atendimento e avisa a equipe quando é caso de humano, e você assume com um clique, sem o paciente perder o fio.' },
+  { q: 'E se eu não quiser usar a IA?', a: 'Sem problema. A IA é opcional e pode ficar desligada. Aí sua equipe atende tudo manualmente e você segue com a caixa unificada, a agenda, o CRM, o prontuário e o financeiro do mesmo jeito. Se mudar de ideia, é só ligar a IA quando quiser.' },
+  { q: 'A IA é genérica, igual pra todo mundo?', a: 'Não. A gente desenvolve e testa a IA com base na sua clínica: seus procedimentos, seus horários, seu jeito de falar. Não é uma IA de prateleira; atende sabendo tudo sobre a sua operação, como se fosse a sua própria secretária.' },
   { q: 'Funciona com o Instagram também?', a: 'Funciona. WhatsApp e Instagram chegam na mesma caixa unificada, então a equipe responde tudo de um lugar só.' },
   { q: 'Os dados dos meus pacientes ficam seguros?', a: 'Sim. Cada clínica enxerga apenas os próprios dados, isolados das demais, com práticas de LGPD. Prontuário, conversa e financeiro ficam restritos à sua equipe.' },
-  { q: 'Preciso instalar alguma coisa?', a: 'Não. O CliniSac roda no navegador, no computador ou no celular. A configuração é acompanhada pela nossa equipe — você não fica sozinho.' },
+  { q: 'Preciso instalar alguma coisa?', a: 'Não. O CliniSac roda no navegador, no computador ou no celular. A configuração é acompanhada pela nossa equipe; você não fica sozinho.' },
   { q: 'Como funciona o teste grátis?', a: '7 dias sem cartão de crédito e sem fidelidade. A gente configura junto, você usa com a clínica de verdade e decide depois.' },
 ]
 
@@ -138,8 +138,8 @@ export default function LandingPage() {
       {/* HERO */}
       <header className="lp-wrap lp-hero">
         <div className="lp-hero-copy">
-          <h1>A clínica inteira — do primeiro contato ao <span className="serif hot">retorno do paciente</span>.</h1>
-          <p className="lp-hero-sub">WhatsApp e Instagram, agenda com confirmação automática, CRM, prontuário, financeiro e métricas — integrados num painel só. A IA atende junto quando você quer; e desliga quando não quer.</p>
+          <h1>A clínica inteira, do primeiro contato ao <span className="serif hot">retorno do paciente</span>.</h1>
+          <p className="lp-hero-sub">WhatsApp e Instagram, agenda com confirmação automática, CRM, prontuário, financeiro e métricas, integrados num painel só. A IA atende junto quando você quer; e desliga quando não quer.</p>
           <div className="lp-hero-ctas" ref={heroCtaRef}>
             <a href={waUrl} target="_blank" rel="noreferrer" onClick={trackCTA} className="lp-btn lp-btn-primary lp-btn-lg">Testar 7 dias grátis</a>
             <a href="#como-funciona" className="lp-btn lp-btn-ghost lp-btn-lg">Ver como funciona</a>
@@ -233,7 +233,7 @@ export default function LandingPage() {
           <div className="lp-head">
             <span className="lp-kicker">Seu problema, nossa solução</span>
             <h2>Uma clínica não deveria precisar de cinco sistemas abertos</h2>
-            <p>WhatsApp Web num canto, o sistema de agenda em outro, o financeiro num terceiro, o disparador de mensagens num quarto — cada um cobrando à parte e nenhum conversando com o outro. O CliniSac junta tudo num painel só.</p>
+            <p>WhatsApp Web num canto, o sistema de agenda em outro, o financeiro num terceiro, o disparador de mensagens num quarto, cada um cobrando à parte e nenhum conversando com o outro. O CliniSac junta tudo num painel só.</p>
           </div>
 
           <div className={`lp-scene${sceneInView ? ' in-view' : ''}`} ref={sceneRef}>
@@ -293,7 +293,7 @@ export default function LandingPage() {
           <div className="lp-head center">
             <span className="lp-kicker">A plataforma</span>
             <h2>Uma clínica completa, não só um chatbot</h2>
-            <p>Seis módulos que conversam entre si — a IA é só uma das camadas, e é opcional.</p>
+            <p>Seis módulos que conversam entre si. A IA é só uma das camadas, e é opcional.</p>
           </div>
           <div className={`lp-features${featAlive ? ' alive' : ''}`} ref={featRef}>
 
@@ -306,7 +306,7 @@ export default function LandingPage() {
                   <div className="lp-mini-b lp-mini-out">Perfeito! Já passo pra recepção confirmar seu horário.</div>
                 </div>
               </div>
-              <div className="lp-feat-body"><h3>Atendimento — com ou sem IA</h3><p>Caixa unificada de WhatsApp e Instagram pra equipe atender de um lugar só. A IA é opcional e não é genérica: a gente desenvolve e testa ela pra sua clínica, então ela atende como a sua própria secretária — e desliga quando você quiser.</p></div>
+              <div className="lp-feat-body"><h3>Atendimento com ou sem IA</h3><p>Caixa unificada de WhatsApp e Instagram pra equipe atender de um lugar só. A IA é opcional e não é genérica: a gente desenvolve e testa ela pra sua clínica, então ela atende como a sua própria secretária, e desliga quando você quiser.</p></div>
             </article>
 
             <article className="lp-feat">
@@ -358,12 +358,12 @@ export default function LandingPage() {
                       <span key={t} style={{ padding: '2px 6px', borderRadius: 6, color: '#64748B', border: '1px solid #EAE7F2' }}>{t}</span>
                     ))}
                   </div>
-                  {[['12/08', 'Avaliação — Dra. Camila · raio-x.pdf'], ['19/08', 'Limpeza · evolução registrada'], ['02/09', 'Retorno · anotações da etapa']].map(([d, t], i) => (
+                  {[['12/08', 'Avaliação · Dra. Camila · raio-x.pdf'], ['19/08', 'Limpeza · evolução registrada'], ['02/09', 'Retorno · anotações da etapa']].map(([d, t], i) => (
                     <span key={i} className="lp-pront-row" style={{ background: '#F8FAFC', border: '1px solid #EAE7F2', borderRadius: 6, padding: '4px 7px', fontSize: 8, color: '#334155' }}><b>{d}</b> · {t}</span>
                   ))}
                 </div>
               </div>
-              <div className="lp-feat-body"><h3>Ficha completa do paciente</h3><p>Cadastro, saúde, prontuário, anamneses, orçamentos e histórico num lugar só — com a evolução e as anotações de cada consulta. Acompanhamento de verdade, não uma ficha solta.</p></div>
+              <div className="lp-feat-body"><h3>Ficha completa do paciente</h3><p>Cadastro, saúde, prontuário, anamneses, orçamentos e histórico num lugar só, com a evolução e as anotações de cada consulta. Acompanhamento de verdade, não uma ficha solta.</p></div>
             </article>
 
             <article className="lp-feat">
@@ -407,7 +407,7 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
-              <div className="lp-feat-body"><h3>Métricas em tempo real</h3><p>Painéis de atendimento, equipe, agenda, financeiro, leads, CRM e kanban — filtrando por dia, semana, mês ou período. Você enxerga a clínica inteira num piscar.</p></div>
+              <div className="lp-feat-body"><h3>Métricas em tempo real</h3><p>Painéis de atendimento, equipe, agenda, financeiro, leads, CRM e kanban, filtrando por dia, semana, mês ou período. Você enxerga a clínica inteira num piscar.</p></div>
             </article>
 
           </div>
@@ -420,7 +420,7 @@ export default function LandingPage() {
           <div className="lp-head center">
             <span className="lp-kicker">Automações</span>
             <h2>O sistema trabalha mesmo quando ninguém está olhando</h2>
-            <p>Elas rodam sozinhas ao longo da jornada do paciente — do primeiro contato ao retorno. Ninguém precisa lembrar.</p>
+            <p>Elas rodam sozinhas ao longo da jornada do paciente, do primeiro contato ao retorno. Ninguém precisa lembrar.</p>
           </div>
 
           {/* linha do tempo: um pulso percorre e dispara cada rotina na ordem real */}
@@ -456,17 +456,17 @@ export default function LandingPage() {
             <article className="lp-auto">
               <span className="lp-auto-when-card">o lead chega</span>
               <h3>Rastreamento de campanhas</h3>
-              <p>Cada lead entra marcado com a origem, pra você medir quais campanhas realmente trazem paciente — e parar de gastar no que não converte.</p>
+              <p>Cada lead entra marcado com a origem, pra você medir quais campanhas realmente trazem paciente, e parar de gastar no que não converte.</p>
             </article>
             <article className="lp-auto">
               <span className="lp-auto-when-card">véspera da consulta</span>
               <h3>Confirmação de presença</h3>
-              <p>O sistema chama o paciente no WhatsApp pra confirmar a consulta e atualiza a agenda com a resposta — menos faltas, sem a recepção ligar.</p>
+              <p>O sistema chama o paciente no WhatsApp pra confirmar a consulta e atualiza a agenda com a resposta. Menos faltas, sem a recepção ligar.</p>
             </article>
             <article className="lp-auto">
               <span className="lp-auto-when-card">após a consulta</span>
               <h3>Follow-up e avaliação</h3>
-              <p>Depois da consulta, o sistema pergunta como foi. E, todo mês, envia a pesquisa de satisfação com o link do seu Google Meu Negócio — paciente feliz vira avaliação 5 estrelas.</p>
+              <p>Depois da consulta, o sistema pergunta como foi. E, todo mês, envia a pesquisa de satisfação com o link do seu Google Meu Negócio. Paciente feliz vira avaliação 5 estrelas.</p>
             </article>
             <article className="lp-auto">
               <span className="lp-star"><svg width="10" height="10" viewBox="0 0 24 24" fill="#0F0E1B"><path d="M12 2l2.9 6.3 6.9.7-5.1 4.6 1.4 6.8L12 17.8 5.9 20.4l1.4-6.8L2.2 9l6.9-.7z"/></svg>Diferencial</span>
@@ -522,7 +522,7 @@ export default function LandingPage() {
       <section className="lp-sec lp-sec-soft" id="depoimento">
         <div className="lp-wrap lp-quote">
           <div className="lp-stars">{[0, 1, 2, 3, 4].map((i) => <Star key={i} />)}</div>
-          <blockquote>“Antes a recepção passava o dia no WhatsApp e mesmo assim paciente ficava sem resposta. Hoje a IA segura a madrugada e o fim de semana — a agenda nunca esteve tão cheia.”</blockquote>
+          <blockquote>“Antes a recepção passava o dia no WhatsApp e mesmo assim paciente ficava sem resposta. Hoje a IA segura a madrugada e o fim de semana, e a agenda nunca esteve tão cheia.”</blockquote>
           <cite><b>Dra. Camila R.</b><span>Clínica odontológica · Porto Velho/RO</span></cite>
         </div>
       </section>
@@ -533,7 +533,7 @@ export default function LandingPage() {
           <div className="lp-head center">
             <span className="lp-kicker">Planos</span>
             <h2>Um plano pro tamanho da sua clínica</h2>
-            <p>Fale com a gente e receba a proposta certa — sem surpresa, sem taxa escondida.</p>
+            <p>Fale com a gente e receba a proposta certa, sem surpresa nem taxa escondida.</p>
           </div>
           <div className="lp-plans">
             {plans.map((p, k) => (

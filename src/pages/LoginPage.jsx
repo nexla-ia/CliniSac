@@ -212,7 +212,7 @@ export default function LoginPage() {
             {tab === 'adm' && (
               <div className="adm-notice">
                 <span className="adm-dot" />
-                Acesso administrativo global — todas as empresas
+                Acesso administrativo global, todas as empresas
               </div>
             )}
 
@@ -247,7 +247,7 @@ export default function LoginPage() {
                 }}>
                 {forcing
                   ? <><Loader2 size={15} className="spin" /> Desconectando a outra sessão...</>
-                  : 'Sou eu — desconectar a outra sessão e entrar'}
+                  : 'Sou eu, desconectar a outra sessão e entrar'}
               </button>
             )}
 
