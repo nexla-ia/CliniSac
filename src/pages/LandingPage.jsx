@@ -64,6 +64,9 @@ export default function LandingPage() {
   // pra não duplicar o botão enquanto o hero está visível.
   const [heroCtaRef, heroCtaInView] = useInView(0, false, true)
 
+  // Linha do tempo das automações: o pulso só percorre quando ela entra na tela.
+  const [journeyRef, journeyInView] = useInView(0.4)
+
   // Nav: sombra ao rolar e link da seção atual sublinhado (scroll-spy).
   // A sombra usa um sentinela no topo da página em vez de window.scrollY:
   // aqui quem rola é o #root (height:100% + overflow no global.css), não a
@@ -396,29 +399,59 @@ export default function LandingPage() {
           <div className="lp-head center">
             <span className="lp-kicker">Automações</span>
             <h2>O sistema trabalha mesmo quando ninguém está olhando</h2>
-            <p>Rotinas que rodam sozinhas — antes e depois da consulta — pra clínica não depender de alguém lembrar.</p>
+            <p>Elas rodam sozinhas ao longo da jornada do paciente — do primeiro contato ao retorno. Ninguém precisa lembrar.</p>
           </div>
+
+          {/* linha do tempo: um pulso percorre e dispara cada rotina na ordem real */}
+          <div className={`lp-journey${journeyInView ? ' alive' : ''}`} ref={journeyRef} aria-hidden="true">
+            <div className="lp-journey-line" />
+            <span className="lp-spark" />
+            <div className="lp-journey-nodes">
+              <div className="lp-node n1">
+                <span className="lp-node-out"><span className="tag"><i />origem: Instagram</span></span>
+                <span className="lp-node-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="m7 14 4-4 3 3 5-6" /></svg></span>
+                <span className="lp-node-when">o lead chega</span>
+              </div>
+              <div className="lp-node n2">
+                <span className="lp-node-out ia">Confirma sua consulta amanhã, 15h? ✅</span>
+                <span className="lp-node-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg></span>
+                <span className="lp-node-when">véspera</span>
+              </div>
+              <div className="lp-node n3">
+                <span className="lp-node-out ia">Como foi seu atendimento? <span className="st">★★★★★</span></span>
+                <span className="lp-node-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11.5 3.3a.5.5 0 0 1 .9 0l2.3 4.6 5.1.7a.5.5 0 0 1 .3.9l-3.7 3.6.9 5.1a.5.5 0 0 1-.8.5L12 16.9l-4.6 2.4a.5.5 0 0 1-.8-.5l.9-5.1L3.8 9.5a.5.5 0 0 1 .3-.9l5.1-.7z" /></svg></span>
+                <span className="lp-node-when">após a consulta</span>
+              </div>
+              <div className="lp-node n4">
+                <span className="lp-node-out ia">Oi, Ana! Já é hora de voltar? 🦷</span>
+                <span className="lp-node-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2M12 2h.01M5 4 3 6M19 4l2 2" /></svg></span>
+                <span className="lp-node-when">meses depois</span>
+              </div>
+            </div>
+            <span className="lp-cycle">↺ e o paciente volta</span>
+          </div>
+
           <div className="lp-autos">
             <article className="lp-auto">
-              <span className="lp-auto-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0E1B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg></span>
+              <span className="lp-auto-when-card">o lead chega</span>
+              <h3>Rastreamento de campanhas</h3>
+              <p>Cada lead entra marcado com a origem, pra você medir quais campanhas realmente trazem paciente — e parar de gastar no que não converte.</p>
+            </article>
+            <article className="lp-auto">
+              <span className="lp-auto-when-card">véspera da consulta</span>
               <h3>Confirmação de presença</h3>
               <p>O sistema chama o paciente no WhatsApp pra confirmar a consulta e atualiza a agenda com a resposta — menos faltas, sem a recepção ligar.</p>
             </article>
             <article className="lp-auto">
-              <span className="lp-auto-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0E1B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11.5 3.3a.5.5 0 0 1 .9 0l2.3 4.6 5.1.7a.5.5 0 0 1 .3.9l-3.7 3.6.9 5.1a.5.5 0 0 1-.8.5L12 16.9l-4.6 2.4a.5.5 0 0 1-.8-.5l.9-5.1L3.8 9.5a.5.5 0 0 1 .3-.9l5.1-.7z" /></svg></span>
+              <span className="lp-auto-when-card">após a consulta</span>
               <h3>Follow-up e avaliação</h3>
               <p>Depois da consulta, o sistema pergunta como foi. E, todo mês, envia a pesquisa de satisfação com o link do seu Google Meu Negócio — paciente feliz vira avaliação 5 estrelas.</p>
             </article>
             <article className="lp-auto">
               <span className="lp-star"><svg width="10" height="10" viewBox="0 0 24 24" fill="#0F0E1B"><path d="M12 2l2.9 6.3 6.9.7-5.1 4.6 1.4 6.8L12 17.8 5.9 20.4l1.4-6.8L2.2 9l6.9-.7z"/></svg>Diferencial</span>
-              <span className="lp-auto-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0E1B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2M12 2h.01M5 4 3 6M19 4l2 2" /></svg></span>
+              <span className="lp-auto-when-card">meses depois</span>
               <h3>Recall por procedimento</h3>
               <p>Você escolhe, por procedimento, depois de quanto tempo o paciente recebe um "já é hora de voltar?". A cadeira enche sozinha, sem ninguém garimpar a base.</p>
-            </article>
-            <article className="lp-auto">
-              <span className="lp-auto-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0E1B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="m7 14 4-4 3 3 5-6" /></svg></span>
-              <h3>Rastreamento de campanhas</h3>
-              <p>Cada lead entra marcado com a origem, pra você medir quais campanhas realmente trazem paciente — e parar de gastar no que não converte.</p>
             </article>
           </div>
         </div>

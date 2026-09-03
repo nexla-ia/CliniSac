@@ -513,3 +513,91 @@
 .lp-mobile-cta .lp-btn { margin-left: auto; flex-shrink: 0; }
 @media (max-width: 640px) { .lp-mobile-cta { display: flex; } .lp-footer { padding-bottom: 84px; } }
 @media (prefers-reduced-motion: reduce) { .lp-mobile-cta { transition: none; } }
+
+/* ═══ automações como linha do tempo da jornada (um pulso percorre e dispara
+   cada rotina na ordem real; no fim, o ciclo recomeça) ═══════════════════ */
+.lp-journey { position: relative; margin: 48px auto 8px; max-width: 1000px; height: 176px; }
+/* trilho */
+.lp-journey-line { position: absolute; left: 11%; right: 11%; top: 96px; height: 3px; border-radius: 3px;
+  background: linear-gradient(90deg, rgba(74,222,128,.25), rgba(34,211,238,.25)); overflow: hidden; }
+.lp-journey-line::after { content: ''; position: absolute; inset: 0; width: 40%;
+  background: linear-gradient(90deg, transparent, var(--ia-green), transparent); transform: translateX(-120%); }
+.lp-journey.alive .lp-journey-line::after { animation: lpTrail 12s linear infinite; }
+@keyframes lpTrail { 0% { transform: translateX(-120%); } 62% { transform: translateX(320%); } 100% { transform: translateX(320%); } }
+/* o pulso que viaja */
+.lp-spark { position: absolute; top: 97px; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  background: radial-gradient(circle, #fff, var(--ia-green) 55%); box-shadow: 0 0 0 4px rgba(74,222,128,.28), 0 0 16px 4px rgba(74,222,128,.6);
+  opacity: 0; z-index: 4; }
+.lp-journey.alive .lp-spark { animation: lpSpark 12s cubic-bezier(.65,0,.35,1) infinite; }
+@keyframes lpSpark {
+  0%   { left: 12.5%; opacity: 0; } 3% { opacity: 1; }
+  8%   { left: 12.5%; } 27% { left: 37.5%; } 46% { left: 62.5%; } 65% { left: 87.5%; }
+  70%  { left: 87.5%; opacity: 1; } 75% { left: 87.5%; opacity: 0; } 100% { left: 87.5%; opacity: 0; }
+}
+/* nós */
+.lp-journey-nodes { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(4, 1fr); }
+.lp-node { position: relative; display: flex; flex-direction: column; align-items: center; }
+.lp-node-ic { position: absolute; top: 78px; width: 40px; height: 40px; border-radius: 12px; background: #fff;
+  border: 2px solid var(--line-2); display: flex; align-items: center; justify-content: center; z-index: 3;
+  transition: transform .3s ease; }
+.lp-node-ic svg { stroke: var(--muted); transition: stroke .3s ease; }
+.lp-node-when { position: absolute; top: 126px; font-family: 'Fragment Mono', monospace; font-size: 10px;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; transition: color .3s ease; }
+/* balão que a rotina dispara (aparece acima do nó) */
+.lp-node-out { position: absolute; top: 6px; max-width: 190px; background: #fff; border: 1px solid var(--line-2);
+  border-radius: 12px; border-bottom-left-radius: 4px; padding: 7px 11px; font-size: 11px; font-weight: 500; color: var(--ink);
+  line-height: 1.35; box-shadow: 0 14px 30px -14px rgba(15,14,27,.3); opacity: 0; transform: translateY(8px) scale(.96);
+  z-index: 5; }
+.lp-node-out.ia { background: var(--ia-green); color: #fff; border-color: var(--ia-green); }
+.lp-node-out .st { color: #FDB022; letter-spacing: 1px; }
+.lp-node-out .tag { display: inline-flex; align-items: center; gap: 5px; }
+.lp-node-out .tag i { width: 7px; height: 7px; border-radius: 50%; background: #E1306C; }
+/* quando o pulso passa por cada nó (spark bate em ~8/27/46/65%), o ícone dá
+   um blip e acende, e o balão daquele nó pinga — tudo no mesmo loop de 12s,
+   janelas distintas por nó (sem delay negativo, que sobrepunha os balões). */
+.lp-journey.alive .lp-node:nth-child(1) .lp-node-ic { animation: lpNI1 12s ease-in-out infinite; }
+.lp-journey.alive .lp-node:nth-child(2) .lp-node-ic { animation: lpNI2 12s ease-in-out infinite; }
+.lp-journey.alive .lp-node:nth-child(3) .lp-node-ic { animation: lpNI3 12s ease-in-out infinite; }
+.lp-journey.alive .lp-node:nth-child(4) .lp-node-ic { animation: lpNI4 12s ease-in-out infinite; }
+/* neutro → blip+acende no momento do pulso → fica verde → reset no fim */
+@keyframes lpNI1 { 0%,6% { transform: scale(1); border-color: var(--line-2); } 9% { transform: scale(1.2); border-color: var(--ia-green); box-shadow: 0 0 0 6px rgba(74,222,128,.2); } 14%,93% { transform: scale(1); border-color: var(--ia-green); box-shadow: none; } 96%,100% { border-color: var(--line-2); } }
+@keyframes lpNI2 { 0%,25% { transform: scale(1); border-color: var(--line-2); } 28% { transform: scale(1.2); border-color: var(--ia-green); box-shadow: 0 0 0 6px rgba(74,222,128,.2); } 33%,93% { transform: scale(1); border-color: var(--ia-green); box-shadow: none; } 96%,100% { border-color: var(--line-2); } }
+@keyframes lpNI3 { 0%,44% { transform: scale(1); border-color: var(--line-2); } 47% { transform: scale(1.2); border-color: var(--ia-green); box-shadow: 0 0 0 6px rgba(74,222,128,.2); } 52%,93% { transform: scale(1); border-color: var(--ia-green); box-shadow: none; } 96%,100% { border-color: var(--line-2); } }
+@keyframes lpNI4 { 0%,63% { transform: scale(1); border-color: var(--line-2); } 66% { transform: scale(1.2); border-color: var(--ia-green); box-shadow: 0 0 0 6px rgba(74,222,128,.2); } 71%,93% { transform: scale(1); border-color: var(--ia-green); box-shadow: none; } 96%,100% { border-color: var(--line-2); } }
+/* o traço do ícone fica verde a partir do blip de cada nó */
+.lp-journey.alive .lp-node:nth-child(1) .lp-node-ic svg { animation: lpSvg1 12s step-end infinite; }
+.lp-journey.alive .lp-node:nth-child(2) .lp-node-ic svg { animation: lpSvg2 12s step-end infinite; }
+.lp-journey.alive .lp-node:nth-child(3) .lp-node-ic svg { animation: lpSvg3 12s step-end infinite; }
+.lp-journey.alive .lp-node:nth-child(4) .lp-node-ic svg { animation: lpSvg4 12s step-end infinite; }
+@keyframes lpSvg1 { 0% { stroke: var(--muted); } 9%,96% { stroke: var(--ia-green); } 96.01% { stroke: var(--muted); } }
+@keyframes lpSvg2 { 0% { stroke: var(--muted); } 28%,96% { stroke: var(--ia-green); } 96.01% { stroke: var(--muted); } }
+@keyframes lpSvg3 { 0% { stroke: var(--muted); } 47%,96% { stroke: var(--ia-green); } 96.01% { stroke: var(--muted); } }
+@keyframes lpSvg4 { 0% { stroke: var(--muted); } 66%,96% { stroke: var(--ia-green); } 96.01% { stroke: var(--muted); } }
+/* balões: cada um pinga logo após o pulso passar e some antes do próximo */
+.lp-journey.alive .lp-node:nth-child(1) .lp-node-out { animation: lpBub1 12s ease-out infinite; }
+.lp-journey.alive .lp-node:nth-child(2) .lp-node-out { animation: lpBub2 12s ease-out infinite; }
+.lp-journey.alive .lp-node:nth-child(3) .lp-node-out { animation: lpBub3 12s ease-out infinite; }
+.lp-journey.alive .lp-node:nth-child(4) .lp-node-out { animation: lpBub4 12s ease-out infinite; }
+@keyframes lpBub1 { 0%,7% { opacity: 0; transform: translateY(8px) scale(.96); } 10%,24% { opacity: 1; transform: none; } 29%,100% { opacity: 0; transform: translateY(8px) scale(.96); } }
+@keyframes lpBub2 { 0%,26% { opacity: 0; transform: translateY(8px) scale(.96); } 29%,43% { opacity: 1; transform: none; } 48%,100% { opacity: 0; transform: translateY(8px) scale(.96); } }
+@keyframes lpBub3 { 0%,45% { opacity: 0; transform: translateY(8px) scale(.96); } 48%,62% { opacity: 1; transform: none; } 67%,100% { opacity: 0; transform: translateY(8px) scale(.96); } }
+@keyframes lpBub4 { 0%,64% { opacity: 0; transform: translateY(8px) scale(.96); } 67%,90% { opacity: 1; transform: none; } 95%,100% { opacity: 0; transform: translateY(8px) scale(.96); } }
+/* selo de ciclo no fim */
+.lp-cycle { position: absolute; left: 50%; top: 150px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px;
+  font-family: 'Fragment Mono', monospace; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; color: var(--ink);
+  background: var(--grad-brand); padding: 5px 12px; border-radius: 999px; opacity: 0; z-index: 6; box-shadow: 0 8px 20px -8px rgba(74,222,128,.6); }
+.lp-journey.alive .lp-cycle { animation: lpCycle 12s ease-out infinite; }
+@keyframes lpCycle { 0%, 70% { opacity: 0; transform: translateX(-50%) translateY(6px); } 74%, 92% { opacity: 1; transform: translateX(-50%) translateY(0); } 97%, 100% { opacity: 0; transform: translateX(-50%) translateY(6px); } }
+
+/* os cards perdem o ícone (foi pro nó); ganham a tag "quando" no topo */
+.lp-auto-when-card { font-family: 'Fragment Mono', monospace; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ia-green); }
+
+@media (max-width: 760px) {
+  .lp-journey { display: none; }  /* no mobile, a jornada horizontal não cabe — cards contam a história */
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-journey-line::after, .lp-spark, .lp-node-ic, .lp-node-out, .lp-cycle, .lp-node-ic svg { animation: none !important; }
+  .lp-node-out { opacity: 1; transform: none; }
+  .lp-node-ic { border-color: var(--ia-green); } .lp-node-ic svg { stroke: var(--ia-green); }
+  .lp-cycle { opacity: 1; }
+}
