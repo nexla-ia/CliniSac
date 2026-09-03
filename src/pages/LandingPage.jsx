@@ -349,20 +349,21 @@ export default function LandingPage() {
                 <div className="lp-panel">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7, borderBottom: '1px solid #F1EFF7', paddingBottom: 6 }}>
                     <span className="lp-m-av" style={{ width: 22, height: 22, fontSize: 10 }}>A</span>
-                    <span style={{ lineHeight: 1.3 }}><b style={{ fontSize: 9.5 }}>Ana Beatriz Souza</b><br /><span style={{ fontSize: 7.5, color: '#94A3B8' }}>34 anos · desde mar/2026</span></span>
+                    <span style={{ lineHeight: 1.3 }}><b style={{ fontSize: 9.5 }}>Ana Beatriz Souza</b><br /><span style={{ fontSize: 7.5, color: '#94A3B8' }}>34 anos · Particular · desde mar/2026</span></span>
                     <span style={{ marginLeft: 'auto', fontSize: 7, fontWeight: 700, padding: '1px 6px', borderRadius: 20, color: '#059669', background: '#ECFDF5' }}>Em tratamento</span>
                   </div>
-                  <div style={{ display: 'flex', gap: 4, fontSize: 7.5, fontWeight: 600 }}>
-                    <span style={{ padding: '2px 7px', borderRadius: 6, background: '#EFF6FF', color: '#2563EB' }}>Prontuário</span>
-                    <span style={{ padding: '2px 7px', borderRadius: 6, color: '#64748B', border: '1px solid #EAE7F2' }}>Anamnese</span>
-                    <span style={{ padding: '2px 7px', borderRadius: 6, color: '#64748B', border: '1px solid #EAE7F2' }}>Plano</span>
+                  <div style={{ display: 'flex', gap: 3, fontSize: 7, fontWeight: 600, flexWrap: 'wrap' }}>
+                    <span style={{ padding: '2px 6px', borderRadius: 6, background: '#EFF6FF', color: '#2563EB' }}>Prontuário</span>
+                    {['Cadastro', 'Saúde', 'Anamneses', 'Orçamentos', 'Histórico'].map(t => (
+                      <span key={t} style={{ padding: '2px 6px', borderRadius: 6, color: '#64748B', border: '1px solid #EAE7F2' }}>{t}</span>
+                    ))}
                   </div>
-                  {[['12/08', 'Avaliação inicial — anexo raio-x.pdf'], ['19/08', 'Limpeza + orientações'], ['02/09', 'Retorno · lembrete ativo']].map(([d, t], i) => (
+                  {[['12/08', 'Avaliação — Dra. Camila · raio-x.pdf'], ['19/08', 'Limpeza · evolução registrada'], ['02/09', 'Retorno · anotações da etapa']].map(([d, t], i) => (
                     <span key={i} className="lp-pront-row" style={{ background: '#F8FAFC', border: '1px solid #EAE7F2', borderRadius: 6, padding: '4px 7px', fontSize: 8, color: '#334155' }}><b>{d}</b> · {t}</span>
                   ))}
                 </div>
               </div>
-              <div className="lp-feat-body"><h3>Prontuário e anamnese</h3><p>Ficha do paciente, anexos, plano de tratamento e histórico da conversa no mesmo lugar.</p></div>
+              <div className="lp-feat-body"><h3>Ficha completa do paciente</h3><p>Cadastro, saúde, prontuário, anamneses, orçamentos e histórico num lugar só — com a evolução e as anotações de cada consulta. Acompanhamento de verdade, não uma ficha solta.</p></div>
             </article>
 
             <article className="lp-feat">
