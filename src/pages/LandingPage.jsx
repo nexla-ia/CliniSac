@@ -50,9 +50,9 @@ const faqs = [
 
 const plans = [
   { name: 'Starter', sub: 'Pra clínica começando a organizar o atendimento', feat: false,
-    items: ['IA no WhatsApp 24/7', 'Agenda + lembretes automáticos', 'Até 3 profissionais', '5 usuários na equipe'] },
-  { name: 'Pro', sub: 'Pra clínica em crescimento, com equipe e funil', feat: true,
-    items: ['Tudo do Starter', 'Instagram na caixa unificada', 'CRM com funil de vendas', 'Métricas de equipe e financeiro', 'Até 25 profissionais, agendas ilimitadas'] },
+    items: ['Atendimento com IA no WhatsApp 24/7', 'Agenda, prontuário e financeiro', 'CRM com 1 funil', 'Lembrete de consulta', '3 usuários de acesso'] },
+  { name: 'Pro', sub: 'Pra clínica que quer a agenda cheia no automático', feat: true,
+    items: ['Tudo do Starter', 'Instagram na caixa unificada', 'Confirmação, follow-up e recall automáticos', 'CRM com funis ilimitados', 'Métricas de equipe e financeiro', 'Agendas ilimitadas'] },
   { name: 'Business', sub: 'Pra redes e clínicas com várias unidades', feat: false,
     items: ['Tudo do Pro', 'Profissionais e usuários ilimitados', 'Vários números de WhatsApp', 'Comparativo entre filiais', 'API e integrações sob medida'] },
 ]
