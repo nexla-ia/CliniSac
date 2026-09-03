@@ -13,18 +13,22 @@ function getUTM(key) {
   catch { return null }
 }
 
-// Seções rastreadas: classe CSS → chave de dado
+// Seções rastreadas: seletor na landing → chave de dado.
+// Os seletores apontam pros ids/classes reais de src/pages/LandingPage.jsx;
+// as chaves são o que fica salvo em landing_analytics.section_times e o que
+// a tela ADM "Landing Page" usa como rótulo (ela importa este array).
 const SECTIONS = [
-  { selector: '.lp-hero',        key: 'hero',           label: 'Hero' },
-  { selector: '.lp-stats',       key: 'stats',          label: 'Stats' },
-  { selector: '.lp-icp',         key: 'para-quem',      label: 'Pra quem é' },
-  { selector: '.lp-how',         key: 'como-funciona',  label: 'Como funciona' },
-  { selector: '.lp-features',    key: 'recursos',       label: 'Recursos' },
-  { selector: '.lp-team',        key: 'time',           label: 'Time' },
-  { selector: '.lp-testimonial', key: 'testimonial',    label: 'Depoimento' },
-  { selector: '.lp-pricing',     key: 'planos',         label: 'Planos' },
-  { selector: '.lp-trial',       key: 'trial',          label: 'Trial' },
-  { selector: '.lp-cta',         key: 'cta',            label: 'CTA Final' },
+  { selector: '.lp-hero',      key: 'hero',           label: 'Hero' },
+  { selector: '.lp-strip',     key: 'stats',          label: 'Faixa de prova' },
+  { selector: '#problema',     key: 'problema',       label: 'Problema / solução' },
+  { selector: '#recursos',     key: 'recursos',       label: 'A plataforma' },
+  { selector: '#automacoes',   key: 'automacoes',     label: 'Automações' },
+  { selector: '#como-funciona',key: 'como-funciona',  label: 'Como funciona' },
+  { selector: '#pra-quem',     key: 'para-quem',      label: 'Pra quem é' },
+  { selector: '#depoimento',   key: 'testimonial',    label: 'Depoimento' },
+  { selector: '#planos',       key: 'planos',         label: 'Planos' },
+  { selector: '#faq',          key: 'faq',            label: 'Dúvidas' },
+  { selector: '.lp-cta',       key: 'cta',            label: 'CTA Final' },
 ]
 
 export { SECTIONS }
@@ -55,15 +59,20 @@ export function useLandingAnalytics() {
       device:       getDevice(),
     }).then(() => { inserted.current = true })
 
-    // Scroll depth
-    function onScroll() {
-      const el  = document.documentElement
+    // Scroll depth. Escuta em CAPTURA na window: o evento scroll não borbulha,
+    // mas a captura pega o scroll de qualquer elemento — e aqui quem rola é o
+    // #root (height:100% + overflow no global.css), não a janela; ler
+    // document.documentElement.scrollTop devolveria 0 pra sempre.
+    function onScroll(e) {
+      const t  = e?.target
+      const el = (!t || t === document || t === window) ? document.scrollingElement : t
+      if (!el || typeof el.scrollTop !== 'number') return
       const max = el.scrollHeight - el.clientHeight
       if (max <= 0) return
       const pct = Math.round((el.scrollTop / max) * 100)
       if (pct > scrollDepth.current) scrollDepth.current = Math.min(pct, 100)
     }
-    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true })
 
     // Per-section time tracking via IntersectionObserver
     const observer = new IntersectionObserver(entries => {
@@ -111,7 +120,7 @@ export function useLandingAnalytics() {
     window.addEventListener('beforeunload', flush)
 
     return () => {
-      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('scroll', onScroll, { capture: true })
       window.removeEventListener('beforeunload', flush)
       clearInterval(iv)
       observer.disconnect()

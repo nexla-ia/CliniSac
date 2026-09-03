@@ -1,6 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// URL pública do site, usada nas tags Open Graph do index.html
+// (%VITE_SITE_URL%). Configure em Vercel → Environment Variables. Sem ela,
+// cai em vazio e as tags viram caminho relativo (/og.png) — funciona na
+// maioria dos scrapers, mas a absoluta é a garantida.
+process.env.VITE_SITE_URL ??= ''
+
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {

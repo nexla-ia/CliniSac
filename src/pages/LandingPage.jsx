@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useInView } from '../hooks/useInView'
+import { useLandingAnalytics } from '../hooks/useLandingAnalytics'
 import './LandingPage.css'
 
 // ⚠️ Troque pelo WhatsApp comercial do CliniSac (só dígitos, com DDI 55).
@@ -49,38 +51,70 @@ const plans = [
 ]
 
 export default function LandingPage() {
-  // A sequência do "tudo em um" só dispara quando a cena entra na tela —
-  // senão ela rodaria escondida no carregamento e ninguém veria.
-  const sceneRef = useRef(null)
-  const [sceneInView, setSceneInView] = useState(false)
+  // Sequências que só disparam quando a seção entra na tela — senão rodam
+  // escondidas no carregamento e ninguém vê.
+  const [sceneRef, sceneInView] = useInView(0.35)
+  const [featRef,  featAlive]   = useInView(0.25)
+  const [stepsRef, stepsAlive]  = useInView(0.4)
+
+  // Alimenta o painel ADM "Landing Page": origem, UTM, tempo por seção, CTA.
+  const { trackCTA } = useLandingAnalytics()
+
+  // Nav: sombra ao rolar e link da seção atual sublinhado (scroll-spy).
+  // A sombra usa um sentinela no topo da página em vez de window.scrollY:
+  // aqui quem rola é o #root (height:100% + overflow no global.css), não a
+  // janela, então scrollY fica em 0 pra sempre. Sentinela sumiu = rolou.
+  const [topRef, topInView] = useInView(0, false, true)
+  const scrolled = !topInView
+  const [activeId, setActiveId] = useState('')
   useEffect(() => {
-    const el = sceneRef.current
-    if (!el || typeof IntersectionObserver === 'undefined') { setSceneInView(true); return }
-    const io = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) { setSceneInView(true); io.disconnect() }
-    }, { threshold: 0.35 })
-    io.observe(el)
+    const ids = ['recursos', 'automacoes', 'como-funciona', 'pra-quem', 'planos', 'faq']
+    const els = ids.map(id => document.getElementById(id)).filter(Boolean)
+    // A "zona ativa" é uma faixa no meio da tela: a seção que a ocupa vence.
+    const io = new IntersectionObserver((entries) => {
+      const vis = entries.filter(e => e.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+      if (vis) setActiveId(vis.target.id)
+    }, { rootMargin: '-40% 0px -50% 0px', threshold: [0, 0.2, 0.5] })
+    els.forEach(el => io.observe(el))
     return () => io.disconnect()
   }, [])
 
+  // Financeiro: o "R$ 48.320" conta subindo quando o card aparece.
+  const countRef = useRef(null)
+  useEffect(() => {
+    const el = countRef.current
+    if (!featAlive || !el) return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    const target = 48320, dur = 1200, t0 = performance.now()
+    let raf
+    const tick = (now) => {
+      const p = Math.min(1, (now - t0) / dur)
+      const eased = 1 - Math.pow(1 - p, 3)
+      el.textContent = 'R$ ' + Math.round(target * eased).toLocaleString('pt-BR')
+      if (p < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [featAlive])
+
   return (
     <div className="lp">
+      {/* sentinela: enquanto está na tela, a página não rolou (ver scroll-spy) */}
+      <div ref={topRef} className="lp-top-sentinel" aria-hidden="true" />
 
       {/* NAV */}
-      <nav className="lp-nav">
+      <nav className={`lp-nav${scrolled ? ' scrolled' : ''}`}>
         <div className="lp-wrap lp-nav-inner">
           <Link to="/"><img src="/clinisac-logo.svg" alt="CliniSac" /></Link>
           <div className="lp-nav-links">
-            <a href="#recursos">A plataforma</a>
-            <a href="#automacoes">Automações</a>
-            <a href="#como-funciona">Como funciona</a>
-            <a href="#pra-quem">Pra quem é</a>
-            <a href="#planos">Planos</a>
-            <a href="#faq">Dúvidas</a>
+            {[['recursos', 'A plataforma'], ['automacoes', 'Automações'], ['como-funciona', 'Como funciona'], ['pra-quem', 'Pra quem é'], ['planos', 'Planos'], ['faq', 'Dúvidas']].map(([id, label]) => (
+              <a key={id} href={`#${id}`} className={activeId === id ? 'active' : ''}>{label}</a>
+            ))}
           </div>
           <div className="lp-nav-actions">
             <Link to="/login" className="lp-nav-enter">Entrar</Link>
-            <a href={waUrl} target="_blank" rel="noreferrer" className="lp-btn lp-btn-primary lp-btn-sm">Agendar demonstração</a>
+            <a href={waUrl} target="_blank" rel="noreferrer" onClick={trackCTA} className="lp-btn lp-btn-primary lp-btn-sm">Agendar demonstração</a>
           </div>
         </div>
       </nav>
@@ -91,7 +125,7 @@ export default function LandingPage() {
           <h1>A clínica inteira — do primeiro contato ao <span className="serif hot">retorno do paciente</span>.</h1>
           <p className="lp-hero-sub">WhatsApp e Instagram, agenda com confirmação automática, CRM, prontuário, financeiro e métricas — integrados num painel só. A IA atende junto quando você quer; e desliga quando não quer.</p>
           <div className="lp-hero-ctas">
-            <a href={waUrl} target="_blank" rel="noreferrer" className="lp-btn lp-btn-primary lp-btn-lg">Testar 7 dias grátis</a>
+            <a href={waUrl} target="_blank" rel="noreferrer" onClick={trackCTA} className="lp-btn lp-btn-primary lp-btn-lg">Testar 7 dias grátis</a>
             <a href="#como-funciona" className="lp-btn lp-btn-ghost lp-btn-lg">Ver como funciona</a>
           </div>
           <span className="lp-trust"><Check c="#16A34A" s={14} /> Sem cartão de crédito · configuração acompanhada</span>
@@ -149,10 +183,12 @@ export default function LandingPage() {
                 </div>
                 <div className="lp-m-body">
                   <span className="lp-m-day">Hoje</span>
-                  <div className="lp-m-bubble lp-m-in">Oi! Queria saber se tem horário pra avaliação amanhã</div>
-                  <div className="lp-m-bubble lp-m-out"><span className="lp-m-who">IA · CliniSac</span>Oi, Ana! Temos avaliação amanhã de manhã e à tarde 🙂 Já vou passar pra recepção confirmar o melhor horário pra você.</div>
-                  <div className="lp-m-bubble lp-m-in">Perfeito, obrigada!</div>
-                  <div className="lp-m-bubble lp-m-out"><span className="lp-m-who">IA · CliniSac</span>Combinado! Em instantes a recepção te chama pra fechar 🙌</div>
+                  <div className="lp-m-bubble lp-m-in m1">Oi! Queria saber se tem horário pra avaliação amanhã</div>
+                  <div className="lp-m-typing ta" aria-hidden="true"><i /><i /><i /></div>
+                  <div className="lp-m-bubble lp-m-out m2"><span className="lp-m-who">IA · CliniSac</span>Oi, Ana! Temos avaliação amanhã de manhã e à tarde 🙂 Já vou passar pra recepção confirmar o melhor horário pra você.</div>
+                  <div className="lp-m-bubble lp-m-in m3">Perfeito, obrigada!</div>
+                  <div className="lp-m-typing tb" aria-hidden="true"><i /><i /><i /></div>
+                  <div className="lp-m-bubble lp-m-out m4"><span className="lp-m-who">IA · CliniSac</span>Combinado! Em instantes a recepção te chama pra fechar 🙌</div>
                   <span className="lp-m-sys"><span className="dot" />Lead registrado no funil · recepção notificada</span>
                 </div>
               </div>
@@ -176,7 +212,7 @@ export default function LandingPage() {
       </div>
 
       {/* PROBLEMA / SOLUÇÃO */}
-      <section className="lp-sec lp-sec-soft">
+      <section className="lp-sec lp-sec-soft" id="problema">
         <div className="lp-wrap">
           <div className="lp-head">
             <span className="lp-kicker">Seu problema, nossa solução</span>
@@ -243,7 +279,7 @@ export default function LandingPage() {
             <h2>Uma clínica completa, não só um chatbot</h2>
             <p>Seis módulos que conversam entre si — a IA é só uma das camadas, e é opcional.</p>
           </div>
-          <div className="lp-features">
+          <div className={`lp-features${featAlive ? ' alive' : ''}`} ref={featRef}>
 
             <article className="lp-feat">
               <div className="lp-feat-vis v-mint">
@@ -266,7 +302,7 @@ export default function LandingPage() {
                   {[['08:00', 'Ana · Aval.', '#ECFDF3', '#16A34A'], ['09:00', 'Paula · Limpeza', '#EFF6FF', '#2563EB'], ['10:00', 'Rafael · Canal', '#F5F3FF', '#7C3AED'], ['11:00', 'Júlia · Retorno', '#FEF9E7', '#B45309']].map(([h, t, bg, c], i) => (
                     <div key={i} style={{ display: 'grid', gridTemplateColumns: '30px repeat(3,1fr)', fontSize: 7, color: '#94A3B8', borderTop: '1px solid #F1EFF7' }}>
                       <span style={{ padding: '4px' }}>{h}</span><span />
-                      <span style={{ padding: 2 }}><span style={{ display: 'block', background: bg, borderLeft: `2px solid ${c}`, borderRadius: 3, padding: '2px 4px', color: c, fontWeight: 600 }}>{t}</span></span><span />
+                      <span style={{ padding: 2 }}><span className={i === 3 ? 'lp-slot-new' : ''} style={{ display: 'block', background: bg, borderLeft: `2px solid ${c}`, borderRadius: 3, padding: '2px 4px', color: c, fontWeight: 600 }}>{t}</span></span><span />
                     </div>
                   ))}
                 </div>
@@ -277,6 +313,7 @@ export default function LandingPage() {
             <article className="lp-feat">
               <span className="lp-star"><svg width="10" height="10" viewBox="0 0 24 24" fill="#0F0E1B"><path d="M12 2l2.9 6.3 6.9.7-5.1 4.6 1.4 6.8L12 17.8 5.9 20.4l1.4-6.8L2.2 9l6.9-.7z"/></svg>Diferencial</span>
               <div className="lp-feat-vis v-violet">
+                <span className="lp-crm-ghost" aria-hidden="true">Fernanda M.</span>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 7, height: '100%' }}>
                   {[['Novo lead', '#2563EB', ['Fernanda M.', 'Diego S.']], ['Orçamento', '#D97706', ['Ana Beatriz', 'Carlos D.']], ['Fechado', '#059669', ['Paula A.', 'Rafael T.']]].map(([col, c, names], i) => (
                     <div key={i} style={{ background: '#fff', border: '1px solid #EAE7F2', borderRadius: '8px 8px 0 0', padding: 7, display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -305,7 +342,7 @@ export default function LandingPage() {
                     <span style={{ padding: '2px 7px', borderRadius: 6, color: '#64748B', border: '1px solid #EAE7F2' }}>Plano</span>
                   </div>
                   {[['12/08', 'Avaliação inicial — anexo raio-x.pdf'], ['19/08', 'Limpeza + orientações'], ['02/09', 'Retorno · lembrete ativo']].map(([d, t], i) => (
-                    <span key={i} style={{ background: '#F8FAFC', border: '1px solid #EAE7F2', borderRadius: 6, padding: '4px 7px', fontSize: 8, color: '#334155' }}><b>{d}</b> · {t}</span>
+                    <span key={i} className="lp-pront-row" style={{ background: '#F8FAFC', border: '1px solid #EAE7F2', borderRadius: 6, padding: '4px 7px', fontSize: 8, color: '#334155' }}><b>{d}</b> · {t}</span>
                   ))}
                 </div>
               </div>
@@ -316,7 +353,7 @@ export default function LandingPage() {
               <div className="lp-feat-vis v-mint">
                 <div className="lp-panel">
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                    <span style={{ background: '#F8FAFC', border: '1px solid #EAE7F2', borderRadius: 6, padding: '6px 8px' }}><span style={{ fontSize: 7, color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase' }}>Recebido no mês</span><br /><b style={{ fontSize: 12, color: '#059669' }}>R$ 48.320</b></span>
+                    <span style={{ background: '#F8FAFC', border: '1px solid #EAE7F2', borderRadius: 6, padding: '6px 8px' }}><span style={{ fontSize: 7, color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase' }}>Recebido no mês</span><br /><b ref={countRef} style={{ fontSize: 12, color: '#059669' }}>R$ 48.320</b></span>
                     <span style={{ background: '#F8FAFC', border: '1px solid #EAE7F2', borderRadius: 6, padding: '6px 8px' }}><span style={{ fontSize: 7, color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase' }}>A receber</span><br /><b style={{ fontSize: 12, color: '#0F0E1B' }}>R$ 12.900</b></span>
                   </div>
                   {[['Limpeza · Paula A. · Pix', '+ R$ 280', '#059669'], ['Ortodontia · Rafael T. · 3x', '+ R$ 1.066', '#059669'], ['Aluguel · boleto', '− R$ 3.500', '#DC2626']].map(([t, v, c], i) => (
@@ -337,7 +374,7 @@ export default function LandingPage() {
                   </div>
                   <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: 5, padding: '8px 4px 0' }}>
                     {[34, 48, 42, 62, 55, 78, 92].map((h, i) => (
-                      <span key={i} style={{ flex: 1, height: `${h}%`, background: i === 6 ? '#22D3EE' : i >= 4 ? '#4ADE80' : '#BBF7D0', borderRadius: '3px 3px 0 0' }} />
+                      <span key={i} className="lp-bar" style={{ flex: 1, height: `${h}%`, background: i === 6 ? '#22D3EE' : i >= 4 ? '#4ADE80' : '#BBF7D0', borderRadius: '3px 3px 0 0' }} />
                     ))}
                   </div>
                 </div>
@@ -390,7 +427,7 @@ export default function LandingPage() {
             <span className="lp-kicker">Como funciona</span>
             <h2>Em produção na sua clínica em 3 passos</h2>
           </div>
-          <div className="lp-steps">
+          <div className={`lp-steps${stepsAlive ? ' alive' : ''}`} ref={stepsRef}>
             {steps.map((s) => (
               <div className="lp-step" key={s.n}><span className="lp-step-n">{s.n}</span><h3>{s.title}</h3><p>{s.desc}</p></div>
             ))}
@@ -414,7 +451,7 @@ export default function LandingPage() {
       </section>
 
       {/* DEPOIMENTO */}
-      <section className="lp-sec lp-sec-soft">
+      <section className="lp-sec lp-sec-soft" id="depoimento">
         <div className="lp-wrap lp-quote">
           <div className="lp-stars">{[0, 1, 2, 3, 4].map((i) => <Star key={i} />)}</div>
           <blockquote>“Antes a recepção passava o dia no WhatsApp e mesmo assim paciente ficava sem resposta. Hoje a IA segura a madrugada e o fim de semana — a agenda nunca esteve tão cheia.”</blockquote>
@@ -440,7 +477,7 @@ export default function LandingPage() {
                     <span className="lp-plan-it" key={j}><Check c={p.feat ? '#4ADE80' : '#059669'} />{it}</span>
                   ))}
                 </div>
-                <a href={waUrl} target="_blank" rel="noreferrer" className={`lp-btn lp-btn-lg ${p.feat ? 'lp-btn-primary' : 'lp-btn-ghost'}`} style={{ justifyContent: 'center' }}>Falar com a gente</a>
+                <a href={waUrl} target="_blank" rel="noreferrer" onClick={trackCTA} className={`lp-btn lp-btn-lg ${p.feat ? 'lp-btn-primary' : 'lp-btn-ghost'}`} style={{ justifyContent: 'center' }}>Falar com a gente</a>
               </div>
             ))}
           </div>
@@ -473,7 +510,7 @@ export default function LandingPage() {
         <div className="lp-cta">
           <h2>Sua clínica com atendimento de alto nível, a partir de hoje</h2>
           <p>Teste 7 dias grátis, sem cartão e sem fidelidade. A gente configura junto com você.</p>
-          <a href={waUrl} target="_blank" rel="noreferrer" className="lp-btn lp-btn-primary lp-btn-lg" style={{ marginTop: 6 }}>
+          <a href={waUrl} target="_blank" rel="noreferrer" onClick={trackCTA} className="lp-btn lp-btn-primary lp-btn-lg" style={{ marginTop: 6 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="#0F0E1B"><path d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.16-.17.2-.35.22-.64.08-.3-.15-1.26-.46-2.4-1.48-.88-.79-1.48-1.76-1.65-2.06-.17-.3-.02-.46.13-.6.13-.14.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.2-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.22 3.07c.15.2 2.1 3.2 5.08 4.49.7.3 1.26.49 1.7.63.7.22 1.36.19 1.87.12.57-.09 1.76-.72 2-1.41.25-.7.25-1.29.18-1.42-.08-.12-.27-.2-.57-.35" /><path d="M12.05 21.78h-.01a9.87 9.87 0 0 1-5.03-1.38l-.36-.21-3.74.98 1-3.65-.24-.37a9.86 9.86 0 0 1-1.51-5.26c0-5.45 4.44-9.88 9.89-9.88 2.64 0 5.12 1.03 6.99 2.9a9.83 9.83 0 0 1 2.89 6.99c0 5.45-4.44 9.88-9.89 9.88M20.46 3.49A11.82 11.82 0 0 0 12.05 0C5.5 0 .16 5.34.16 11.9c0 2.1.55 4.14 1.59 5.95L.06 24l6.3-1.65a11.88 11.88 0 0 0 5.69 1.45h.01c6.55 0 11.89-5.34 11.89-11.9 0-3.18-1.24-6.17-3.49-8.42" /></svg>
             Agendar demonstração
           </a>

@@ -382,3 +382,118 @@
   .lp-chaos { height: 300px; }
   .lp-arrow { height: 76px; transform: rotate(90deg); }
 }
+
+/* ═══ hero: a conversa acontecendo (loop de 11s) ════════════════════════ */
+.lp-m-body .lp-m-bubble, .lp-m-body .lp-m-sys { animation-duration: 11s; animation-timing-function: ease-out; animation-iteration-count: infinite; }
+.lp-m-body .m1 { animation-name: lpM1; } .lp-m-body .m2 { animation-name: lpM2; }
+.lp-m-body .m3 { animation-name: lpM3; } .lp-m-body .m4 { animation-name: lpM4; }
+.lp-m-body .lp-m-sys { animation-name: lpSys; }
+@keyframes lpM1 { 0%, 3%  { opacity: 0; transform: translateY(8px); } 6%,  94% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; transform: translateY(8px); } }
+@keyframes lpM2 { 0%, 20% { opacity: 0; transform: translateY(8px); } 23%, 94% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; transform: translateY(8px); } }
+@keyframes lpM3 { 0%, 32% { opacity: 0; transform: translateY(8px); } 35%, 94% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; transform: translateY(8px); } }
+@keyframes lpM4 { 0%, 50% { opacity: 0; transform: translateY(8px); } 53%, 94% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; transform: translateY(8px); } }
+@keyframes lpSys { 0%, 61% { opacity: 0; transform: translateY(6px); } 64%, 94% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; } }
+/* "digitando…" — aparece antes de cada resposta da IA; colapsa quando some
+   pra não deixar buraco no fio da conversa */
+.lp-m-typing { align-self: flex-end; display: flex; gap: 4px; align-items: center; background: var(--ia-green); border-radius: 13px; border-bottom-right-radius: 4px; padding: 0 11px; height: 0; opacity: 0; overflow: hidden; margin-top: -8px; animation: lpTyp 11s linear infinite; }
+.lp-m-typing i { width: 5px; height: 5px; border-radius: 50%; background: #fff; animation: lpDot 1s ease-in-out infinite; }
+.lp-m-typing i:nth-child(2) { animation-delay: .15s; } .lp-m-typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes lpDot { 0%, 100% { transform: translateY(0); opacity: .5; } 50% { transform: translateY(-3px); opacity: 1; } }
+@keyframes lpTyp {
+  0%, 8%   { height: 0;    padding-top: 0;   padding-bottom: 0;   opacity: 0; margin-top: -8px; }
+  9%, 19%  { height: 26px; padding-top: 7px; padding-bottom: 7px; opacity: 1; margin-top: 0; }
+  21%, 39% { height: 0;    padding-top: 0;   padding-bottom: 0;   opacity: 0; margin-top: -8px; }
+  40%, 49% { height: 26px; padding-top: 7px; padding-bottom: 7px; opacity: 1; margin-top: 0; }
+  51%, 100%{ height: 0;    padding-top: 0;   padding-bottom: 0;   opacity: 0; margin-top: -8px; }
+}
+
+/* ═══ recursos: os mockups ganham vida ao entrar na tela (.alive) ═══════ */
+.lp-feat-vis { position: relative; }
+/* CRM: um lead atravessa o funil, coluna a coluna */
+.lp-crm-ghost { position: absolute; left: 21px; top: 40px; width: calc((100% - 42px - 14px) / 3); background: #fff; border: 1px solid #BFDBFE; border-radius: 6px; padding: 5px 7px; font-size: 8.5px; font-weight: 700; color: #0F0E1B; box-shadow: 0 8px 18px -8px rgba(37, 99, 235, .5); opacity: 0; pointer-events: none; z-index: 2; }
+.alive .lp-crm-ghost { animation: lpLead 6.5s ease-in-out infinite; }
+@keyframes lpLead {
+  0%, 5%   { opacity: 0; transform: translate(0, 0) scale(.96); }
+  9%, 27%  { opacity: 1; transform: translate(0, 0) scale(1); }
+  35%, 57% { opacity: 1; transform: translate(calc(100% + 7px), 0); }
+  65%, 88% { opacity: 1; transform: translate(calc(200% + 14px), 0); }
+  94%, 100%{ opacity: 0; transform: translate(calc(200% + 14px), 0) scale(.96); }
+}
+/* métricas: as barras crescem do chão */
+.lp-bar { transform-origin: bottom; transform: scaleY(.06); }
+.alive .lp-bar { animation: lpBar .8s cubic-bezier(.2, .7, .2, 1) forwards; }
+.alive .lp-bar:nth-child(1) { animation-delay: .05s; } .alive .lp-bar:nth-child(2) { animation-delay: .15s; }
+.alive .lp-bar:nth-child(3) { animation-delay: .25s; } .alive .lp-bar:nth-child(4) { animation-delay: .35s; }
+.alive .lp-bar:nth-child(5) { animation-delay: .45s; } .alive .lp-bar:nth-child(6) { animation-delay: .55s; }
+.alive .lp-bar:nth-child(7) { animation-delay: .65s; }
+@keyframes lpBar { to { transform: scaleY(1); } }
+/* agenda: um horário novo "cai" na grade */
+.lp-slot-new { opacity: 0; transform: translateY(-6px); }
+.alive .lp-slot-new { animation: lpSlot .5s cubic-bezier(.2, .7, .2, 1) 1s forwards; }
+@keyframes lpSlot { to { opacity: 1; transform: none; } }
+/* prontuário: a linha do tempo entra em ordem */
+.lp-pront-row { opacity: 0; transform: translateX(8px); }
+.alive .lp-pront-row { animation: lpRowIn .5s cubic-bezier(.2, .7, .2, 1) forwards; }
+.alive .lp-pront-row:nth-of-type(1) { animation-delay: .2s; } .alive .lp-pront-row:nth-of-type(2) { animation-delay: .45s; } .alive .lp-pront-row:nth-of-type(3) { animation-delay: .7s; }
+/* IA: a conversinha do card se desenrola */
+.lp-mini-b { opacity: 0; transform: translateY(6px); }
+.alive .lp-mini-b { animation: lpRowIn .45s cubic-bezier(.2, .7, .2, 1) forwards; }
+.alive .lp-mini-b:nth-child(1) { animation-delay: .1s; } .alive .lp-mini-b:nth-child(2) { animation-delay: 1s; }
+.alive .lp-mini-b:nth-child(3) { animation-delay: 1.9s; } .alive .lp-mini-b:nth-child(4) { animation-delay: 2.8s; }
+
+/* ═══ nav: sombra ao rolar + seção atual sublinhada ═════════════════════ */
+.lp-nav { transition: box-shadow .25s ease; }
+.lp-nav.scrolled { box-shadow: 0 10px 30px -22px rgba(15, 14, 27, .38); }
+.lp-nav-links a.active { color: var(--ink); }
+.lp-nav-links a.active::after { width: 100%; }
+
+/* ═══ como funciona: a linha se desenha e os números acendem ════════════ */
+.lp-steps { position: relative; }
+.lp-steps::before { content: ''; position: absolute; left: 9%; right: 9%; top: 50px; height: 3px; border-radius: 2px; background: var(--grad-brand); transform: scaleX(0); transform-origin: left; z-index: 0; }
+.lp-steps.alive::before { animation: lpLine 1.3s cubic-bezier(.2, .7, .2, 1) .2s forwards; }
+@keyframes lpLine { to { transform: scaleX(1); } }
+.lp-step { z-index: 1; }
+.lp-step-n { background: #ECEAF4; color: var(--ink); }
+.lp-steps.alive .lp-step:nth-child(1) .lp-step-n { animation: lpNum .45s ease-out .35s forwards; }
+.lp-steps.alive .lp-step:nth-child(2) .lp-step-n { animation: lpNum .45s ease-out .9s forwards; }
+.lp-steps.alive .lp-step:nth-child(3) .lp-step-n { animation: lpNum .45s ease-out 1.45s forwards; }
+@keyframes lpNum { to { background: var(--ink); color: #fff; box-shadow: 0 0 0 4px rgba(74, 222, 128, .35); } }
+
+@media (max-width: 900px) { .lp-steps::before { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .lp-m-body .lp-m-bubble, .lp-m-body .lp-m-sys, .lp-crm-ghost, .lp-bar, .lp-slot-new, .lp-pront-row, .lp-mini-b, .lp-steps::before, .lp-step-n { animation: none !important; }
+  .lp-m-typing { display: none; }
+  .lp-bar, .lp-slot-new, .lp-pront-row, .lp-mini-b { opacity: 1; transform: none; }
+  .lp-steps::before { transform: scaleX(1); }
+  .lp-step-n { background: var(--ink); color: #fff; }
+}
+
+/* "digitando…" em dois pontos do fio: um antes de cada resposta da IA */
+.lp-m-typing.ta { animation-name: lpTypA; }
+.lp-m-typing.tb { animation-name: lpTypB; }
+@keyframes lpTypA {
+  0%, 8%   { height: 0;    padding-top: 0;   padding-bottom: 0;   opacity: 0; margin-top: -8px; }
+  9%, 19%  { height: 26px; padding-top: 7px; padding-bottom: 7px; opacity: 1; margin-top: 0; }
+  21%, 100%{ height: 0;    padding-top: 0;   padding-bottom: 0;   opacity: 0; margin-top: -8px; }
+}
+@keyframes lpTypB {
+  0%, 39%  { height: 0;    padding-top: 0;   padding-bottom: 0;   opacity: 0; margin-top: -8px; }
+  40%, 49% { height: 26px; padding-top: 7px; padding-bottom: 7px; opacity: 1; margin-top: 0; }
+  51%, 100%{ height: 0;    padding-top: 0;   padding-bottom: 0;   opacity: 0; margin-top: -8px; }
+}
+
+/* sentinela do topo: 10px de altura sem ocupar espaço; quando sai da tela,
+   a nav ganha sombra (a janela não rola aqui — quem rola é o #root) */
+.lp-top-sentinel { height: 10px; margin-bottom: -10px; pointer-events: none; }
+
+/* A linha entre os passos precisa do próprio contexto de empilhamento: em
+   z-index 0 no contexto raiz ela era coberta; isolada, ordena-se só contra
+   os cards (z 1) e fica visível nos vãos. 4px + brilho: 3px era tímido. */
+.lp-steps { isolation: isolate; }
+.lp-steps::before { height: 4px; box-shadow: 0 0 0 1px rgba(255, 255, 255, .6), 0 4px 12px -4px rgba(74, 222, 128, .6); }
+
+/* A linha conectora horizontal entre os passos não renderizava de forma
+   confiável nos vãos (conflito de stacking context com os cards). O recado
+   de "sequência" já vem dos números acendendo 1→2→3 e da borda-gradiente no
+   topo de cada card, então a linha sai. */
+.lp-steps::before { display: none !important; }
