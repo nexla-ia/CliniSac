@@ -384,19 +384,30 @@ export default function LandingPage() {
             <article className="lp-feat">
               <div className="lp-feat-vis v-violet">
                 <div className="lp-panel">
+                  <div style={{ display: 'flex', gap: 3, fontSize: 6.5, fontWeight: 700 }}>
+                    {['Hoje', 'Semana', 'Mês', 'Todos'].map((t, i) => (
+                      <span key={t} style={{ padding: '2px 6px', borderRadius: 20, background: i === 1 ? '#2563EB' : '#fff', color: i === 1 ? '#fff' : '#64748B', border: i === 1 ? 'none' : '1px solid #EAE7F2' }}>{t}</span>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 3, fontSize: 6, fontWeight: 700, flexWrap: 'wrap' }}>
+                    <span style={{ color: '#7C3AED' }}>Visão geral</span>
+                    {['Atendimento', 'Equipe', 'Agenda', 'Financeiro', 'Leads', 'CRM', 'Kanban'].map(t => (
+                      <span key={t} style={{ color: '#B6B2C8' }}>· {t}</span>
+                    ))}
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                     {[['Atend.', '1.284', '#0F0E1B'], ['IA', '68%', '#7C3AED'], ['Agend.', '312', '#059669']].map(([k, v, c], i) => (
                       <span key={i} style={{ background: '#F8FAFC', border: '1px solid #EAE7F2', borderRadius: 6, padding: '5px 7px' }}><span style={{ fontSize: 6.5, color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase' }}>{k}</span><br /><b style={{ fontSize: 11, color: c }}>{v}</b></span>
                     ))}
                   </div>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: 5, padding: '8px 4px 0' }}>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: 5, padding: '6px 4px 0' }}>
                     {[34, 48, 42, 62, 55, 78, 92].map((h, i) => (
                       <span key={i} className="lp-bar" style={{ flex: 1, height: `${h}%`, background: i === 6 ? '#22D3EE' : i >= 4 ? '#4ADE80' : '#BBF7D0', borderRadius: '3px 3px 0 0' }} />
                     ))}
                   </div>
                 </div>
               </div>
-              <div className="lp-feat-body"><h3>Métricas em tempo real</h3><p>Tempo médio de atendimento, agendamentos, faturamento, desempenho da equipe e o retorno de cada campanha — em dashboards sempre atualizados.</p></div>
+              <div className="lp-feat-body"><h3>Métricas em tempo real</h3><p>Painéis de atendimento, equipe, agenda, financeiro, leads, CRM e kanban — filtrando por dia, semana, mês ou período. Você enxerga a clínica inteira num piscar.</p></div>
             </article>
 
           </div>
