@@ -349,6 +349,47 @@ não precisa de mais nenhum node/chamada RPC pra essa parte.
 em bolinha + barra de progresso (%) e total de votos — sem lista de quem
 votou (WhatsApp também não expõe isso pra quem não é dono da enquete).
 
+### 3.8 Follow-up pós-consulta + pesquisa mensal de avaliação (Google)
+A landing (`LandingPage.jsx`) promete isso há um tempo — só passou a existir
+de verdade em `20260908_followup_e_avaliacao.sql`. Reaproveita 100% a infra
+de enquete do §3.7, com um campo novo pra diferenciar o tipo:
+
+```sql
+ALTER TABLE mensagens_geral ADD COLUMN IF NOT EXISTS poll_kind text; -- 'confirmacao' | 'satisfacao'
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS google_review_url text; -- por clínica, em AdmCompanyDetail.jsx
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS followup_sent_at timestamptz;
+ALTER TABLE saved_contacts ADD COLUMN IF NOT EXISTS last_review_request_at timestamptz;
+```
+
+**1) `process_appointment_followups()`** (cron a cada 15min, igual §3.2/3.7):
+3h depois que um agendamento vira `concluido` (e só se ainda não fez isso —
+`followup_sent_at IS NULL`), manda enquete `poll_kind='satisfacao'` com 4
+opções fixas: Ótima/Boa/Regular/Ruim. Ignora agendamento concluído há mais
+de 3 dias (não bombardeia histórico velho na primeira vez que a função
+roda).
+
+**2) Trigger `trg_satisfaction_poll_vote`:** se o voto for Regular/Ruim, cria
+alerta pra recepção ligar — **antes** que vire avaliação pública negativa no
+Google. Só dispara na transição de 0 → tem voto ruim (compara contagem OLD
+vs NEW), não manda o link do Google nem pede avaliação pública nesse
+momento — essa é a função da pesquisa separada, item 3.
+
+**3) `process_monthly_review_requests()`** (cron 1x/dia, 13:00 UTC): por
+**paciente** (não por agendamento) — quem teve `concluido` nos últimos 12
+meses e não recebeu esse pedido nos últimos 30 dias, manda mensagem de
+texto simples (não enquete — a avaliação acontece dentro do Google, fora do
+app) com `companies.google_review_url`. Se a clínica não configurou esse
+link, a query nem retorna linha nenhuma — sem "sub-config", zero risco de
+mandar link vazio.
+
+**Por que separar satisfação (individual, por consulta) de avaliação
+(mensal, por paciente):** perguntar "como foi" depois de toda consulta e só
+empurrar quem respondeu bem pro Google seria mais preciso, mas a landing
+prometeu os dois como coisas independentes ("pergunta como foi" + "todo
+mês manda a pesquisa") — implementado exatamente assim. Dá pra evoluir
+depois pra só mandar o link do Google pra quem respondeu Ótima/Boa na
+satisfação, se quiserem apertar o funil.
+
 ---
 
 ## 4. Sidebar / badges

@@ -111,6 +111,7 @@ export default function AdmCompanyDetail() {
       instagramWebhookPath: company.instagram_webhook_path || '',
       evolutionUrl: company.evolution_url || '',
       numeroBase: company.numero_base || '',
+      googleReviewUrl: company.google_review_url || '',
       timezone: company.timezone || '-03:00',
       modules: company.modules || {},
     })
@@ -146,6 +147,7 @@ export default function AdmCompanyDetail() {
         : null,
       evolution_url: companyForm.evolutionUrl?.trim().replace(/\/+$/, '') || null,
       numero_base: companyForm.numeroBase?.trim() || null,
+      google_review_url: companyForm.googleReviewUrl?.trim() || null,
       timezone: companyForm.timezone || '-03:00',
       modules: Object.keys(companyForm.modules || {}).length > 0 ? companyForm.modules : null,
     }
@@ -773,6 +775,11 @@ export default function AdmCompanyDetail() {
                 <label style={labelStyle}>Número base WhatsApp <span style={{ fontWeight: 400, textTransform: 'none' }}>(JID do número cadastrado na instância)</span></label>
                 <input className="nx-input" placeholder="Ex: 5511999999999@s.whatsapp.net" value={companyForm.numeroBase}
                   onChange={e => setCompanyForm(p => ({ ...p, numeroBase: e.target.value.trim() }))} />
+              </div>
+              <div>
+                <label style={labelStyle}>Link de avaliação do Google <span style={{ fontWeight: 400, textTransform: 'none' }}>(Google Meu Negócio — deixe vazio pra não mandar a pesquisa mensal)</span></label>
+                <input className="nx-input" placeholder="Ex: https://g.page/r/xxxxxxx/review" value={companyForm.googleReviewUrl}
+                  onChange={e => setCompanyForm(p => ({ ...p, googleReviewUrl: e.target.value }))} />
               </div>
               <div>
                 <label style={labelStyle}>Atendimento por IA</label>
