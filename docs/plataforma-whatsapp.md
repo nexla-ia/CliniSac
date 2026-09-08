@@ -362,25 +362,33 @@ ALTER TABLE saved_contacts ADD COLUMN IF NOT EXISTS last_review_request_at times
 ```
 
 **1) `process_appointment_followups()`** (cron a cada 15min, igual §3.2/3.7):
-3h depois que um agendamento vira `concluido` (e só se ainda não fez isso —
-`followup_sent_at IS NULL`), manda enquete `poll_kind='satisfacao'` com 4
+**1h** depois que um agendamento vira `concluido` (ajustado de 3h pra 1h em
+`20260908_followup_1h_e_link_na_hora.sql`) — e só se ainda não fez isso
+(`followup_sent_at IS NULL`) — manda enquete `poll_kind='satisfacao'` com 4
 opções fixas: Ótima/Boa/Regular/Ruim. Ignora agendamento concluído há mais
 de 3 dias (não bombardeia histórico velho na primeira vez que a função
 roda).
 
-**2) Trigger `trg_satisfaction_poll_vote`:** se o voto for Regular/Ruim, cria
-alerta pra recepção ligar — **antes** que vire avaliação pública negativa no
-Google. Só dispara na transição de 0 → tem voto ruim (compara contagem OLD
-vs NEW), não manda o link do Google nem pede avaliação pública nesse
-momento — essa é a função da pesquisa separada, item 3.
+**2) Trigger `trg_satisfaction_poll_vote`** — reage aos dois lados do voto:
+- **Regular/Ruim** → cria alerta pra recepção ligar, **antes** que vire
+  avaliação pública negativa no Google. Não manda o link nesse caso.
+- **Ótima/Boa** → manda o link do Google **na hora**, como resposta direta
+  (não espera a pesquisa mensal) — só se `companies.google_review_url`
+  estiver configurado; sem isso, só registra o voto, não erro. Também marca
+  `saved_contacts.last_review_request_at`, pra pesquisa mensal (item 3) não
+  repetir o pedido pro mesmo paciente logo em seguida.
 
-**3) `process_monthly_review_requests()`** (cron 1x/dia, 13:00 UTC): por
+Cada lado só dispara na transição de 0 → tem voto daquele grupo (compara
+contagem OLD vs NEW) — não duplica se o mesmo resultado for regravado.
+
+**3) `process_monthly_review_requests()`** (cron 1x/dia, 13:00 UTC): rede de
+segurança pra quem **não respondeu** o follow-up individual. Por
 **paciente** (não por agendamento) — quem teve `concluido` nos últimos 12
-meses e não recebeu esse pedido nos últimos 30 dias, manda mensagem de
-texto simples (não enquete — a avaliação acontece dentro do Google, fora do
-app) com `companies.google_review_url`. Se a clínica não configurou esse
-link, a query nem retorna linha nenhuma — sem "sub-config", zero risco de
-mandar link vazio.
+meses e não recebeu pedido de avaliação (nem pelo item 2, nem por essa
+pesquisa) nos últimos 30 dias, manda mensagem de texto simples (não enquete
+— a avaliação acontece dentro do Google, fora do app) com
+`companies.google_review_url`. Sem esse link configurado, a query nem
+retorna linha nenhuma — zero risco de mandar link vazio.
 
 **Por que separar satisfação (individual, por consulta) de avaliação
 (mensal, por paciente):** perguntar "como foi" depois de toda consulta e só
