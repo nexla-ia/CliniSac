@@ -2060,7 +2060,7 @@ export default function CompanyGroups() {
             </div>
 
             {/* Barra de envio */}
-            <div style={{ padding: '8px 16px 12px', borderTop: '1px solid var(--border)' }}>
+            <div style={{ padding: '8px 16px calc(16px + env(safe-area-inset-bottom, 0px))', borderTop: '1px solid var(--border)' }}>
               {/* Faixa "Respondendo" */}
               {replyingTo && (
                 <div style={{

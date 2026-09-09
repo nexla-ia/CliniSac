@@ -3630,7 +3630,7 @@ export default function CompanyConversations() {
             </div>
 
             {!isClosed && (
-              <div style={{ padding: '12px 18px', borderTop: '0.5px solid var(--border)', background: 'var(--bg-surface)', flexShrink: 0 }}>
+              <div style={{ padding: '12px 18px calc(16px + env(safe-area-inset-bottom, 0px))', borderTop: '0.5px solid var(--border)', background: 'var(--bg-surface)', flexShrink: 0 }}>
                 {/* Faixa "Respondendo" — mostra a mensagem citada acima do input */}
                 {replyingTo && (
                   <div style={{
