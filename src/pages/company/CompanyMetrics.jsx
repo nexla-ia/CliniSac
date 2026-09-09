@@ -8,7 +8,7 @@ import {
   Users, MessageSquare, TrendingUp, Clock, Inbox, BarChart2, RefreshCw,
   Calendar, BellRing, Kanban, Headset, CheckCircle2, XCircle, AlertCircle,
   Phone, Bot, ListChecks, Flag, ChevronRight, Layers, DollarSign, Stethoscope, Lock,
-  GitMerge, Thermometer, Target, StickyNote, UserCheck, Tag, Download,
+  GitMerge, Thermometer, Target, StickyNote, UserCheck, Tag, Download, Star,
 } from 'lucide-react'
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -198,6 +198,7 @@ const TABS = [
   { key: 'leads',       label: 'Leads',        icon: TrendingUp },
   { key: 'crm',         label: 'CRM',          icon: GitMerge },
   { key: 'atividades',  label: 'Kanban',       icon: Kanban },
+  { key: 'nps',         label: 'NPS',          icon: Star },
 ]
 
 // ─── Metadados do CRM (métricas) ─────────────────────────────────────────────
@@ -305,7 +306,7 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
       crmContactsData, crmStagesData, crmFunnelsData, crmInteractionsData,
       crmTagsData, crmTagAssignsData, crmTempsData,
     ] = await Promise.all([
-      fetchAll((a, b) => supabase.from('mensagens_geral').select('id, numero, type, mensagem, "horaLastMessage", created_at').eq('instancia', instance).order('id', { ascending: false }).range(a, b)),
+      fetchAll((a, b) => supabase.from('mensagens_geral').select('id, numero, type, mensagem, "horaLastMessage", created_at, poll_kind, poll_name, poll_options, poll_votes, poll_appointment_id').eq('instancia', instance).order('id', { ascending: false }).range(a, b)),
       fetchAll((a, b) => supabase.from('conversations').select('session_id, reason, closed_at').eq('instancia', instance).range(a, b)),
       fetchAll((a, b) => supabase.from('attendances').select('numero, sector_id, sector_name, sector_color, attendant_name, attendant_email, assumed_at').eq('instancia', instance).range(a, b)),
       fetchAll((a, b) => supabase.from('appointments').select('*, agendas(name, color)').eq('instancia', instance).order('starts_at', { ascending: false }).range(a, b)),
@@ -617,6 +618,7 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
       {tab === 'leads'       && <LeadsTab       {...{ leads, appts, msgs, range, period, loading, contactsTable }} />}
       {tab === 'crm'         && <CRMTab         {...{ crmContacts, crmStages, crmFunnels, crmInteractions, crmTags, crmTagAssignments, crmTemperatures, range, period, loading }} />}
       {tab === 'atividades'  && <AtividadesTab  {...{ kanbanCards, kanbanColumns, users, range, period, loading }} />}
+      {tab === 'nps'         && <NpsTab         {...{ msgs, appts, range, period, loading }} />}
 
       <LimitReachedModal
         open={!!limitModal}
@@ -2777,6 +2779,140 @@ function CRMTab({ crmContacts, crmStages, crmFunnels, crmInteractions, crmTags, 
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// Lê a opção vencedora de uma enquete de satisfação (selectableCount=1, então
+// só 1 opção deve ter voto) — aceita voto em poll_votes OU poll_options,
+// mesma tolerância do front de Conversas (o n8n grava em qualquer um dos dois).
+function pollWinner(msg) {
+  const all = [...(msg.poll_votes || []), ...(msg.poll_options || [])]
+  for (const v of all) {
+    const key = v?.option || v?.optionName || v?.name
+    const count = Array.isArray(v?.voters) ? v.voters.length : Number(v?.votes) || 0
+    if (key && count > 0) return key
+  }
+  return null
+}
+
+const NPS_META = {
+  'Ótima':   { color: '#16A34A', label: 'Ótima' },
+  'Boa':     { color: '#84CC16', label: 'Boa' },
+  'Regular': { color: '#D97706', label: 'Regular' },
+  'Ruim':    { color: '#DC2626', label: 'Ruim' },
+}
+
+// ─── Tab: NPS (follow-up pós-consulta) ─────────────────────────────────────
+function NpsTab({ msgs, appts, range, period, loading }) {
+  const { from, to } = range
+
+  // Enquetes de satisfação enviadas no período (poll_kind gravado desde
+  // 20260908_followup_e_avaliacao.sql — enquete mais antiga não tem esse
+  // campo e não entra aqui).
+  const polls = useMemo(() =>
+    msgs.filter(x => x.poll_kind === 'satisfacao' && inPeriod(x.created_at, from, to)),
+    [msgs, from, to])
+
+  const responded = useMemo(() =>
+    polls.map(p => ({ ...p, winner: pollWinner(p) })).filter(p => p.winner),
+    [polls])
+
+  const counts = useMemo(() => {
+    const c = { 'Ótima': 0, 'Boa': 0, 'Regular': 0, 'Ruim': 0 }
+    responded.forEach(p => { if (c[p.winner] != null) c[p.winner]++ })
+    return c
+  }, [responded])
+
+  const total = responded.length
+  const promotores = counts['Ótima']
+  const detratores = counts['Regular'] + counts['Ruim']
+  // NPS clássico: (%promotores − %detratores). Ótima=promotor, Boa=passivo
+  // (não entra na conta), Regular/Ruim=detrator.
+  const npsScore = total ? Math.round(((promotores - detratores) / total) * 100) : null
+  const npsColor = npsScore == null ? 'var(--text-muted)' : npsScore >= 50 ? '#16A34A' : npsScore >= 0 ? '#D97706' : '#DC2626'
+
+  const enviadas = polls.length
+  const taxaResposta = enviadas ? Math.round((responded.length / enviadas) * 100) : 0
+
+  const ruins = useMemo(() =>
+    responded.filter(p => p.winner === 'Regular' || p.winner === 'Ruim')
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
+    [responded])
+
+  const nomeDe = (p) => appts.find(a => a.id === p.poll_appointment_id)?.contact_nome
+    || (p.numero || '').replace(/@.*$/, '')
+
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 14, marginBottom: 18 }}>
+        <div className="nx-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>NPS</div>
+          <div style={{ fontSize: 34, fontWeight: 800, color: npsColor, lineHeight: 1 }}>
+            {loading ? '—' : npsScore == null ? '—' : (npsScore > 0 ? `+${npsScore}` : npsScore)}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{periodLabel(period)} · {total} resposta{total === 1 ? '' : 's'}</div>
+        </div>
+        <KpiCard icon={<Star size={18} color="#2563EB" />} bg="#EFF6FF" value={enviadas} label="Pesquisas enviadas" sub={periodLabel(period)} loading={loading} />
+        <KpiCard icon={<CheckCircle2 size={18} color="#16A34A" />} bg="#F0FDF4" value={`${taxaResposta}%`} label="Taxa de resposta" sub={`${responded.length} de ${enviadas}`} loading={loading} />
+        <KpiCard icon={<AlertCircle size={18} color="#DC2626" />} bg="#FEF2F2" value={detratores} label="Regular / Ruim" sub="alerta já criado pra recepção" loading={loading} alert={detratores > 0} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 14, marginBottom: 14 }}>
+        <div className="nx-card" style={{ padding: '1.25rem' }}>
+          <SectionTitle icon={Star} text="Distribuição das respostas" right={periodLabel(period)} />
+          {total === 0 ? <Empty /> : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <DonutChart data={Object.entries(counts).filter(([, v]) => v > 0).map(([k, v]) => ({ value: v, color: NPS_META[k].color, label: NPS_META[k].label }))} />
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {Object.entries(counts).map(([k, v]) => (
+                  <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: NPS_META[k].color }} />
+                    <span style={{ flex: 1, color: 'var(--text-secondary)' }}>{k}</span>
+                    <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{v}</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', minWidth: 40, textAlign: 'right' }}>{total ? Math.round(v / total * 100) : 0}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="nx-card" style={{ padding: '1.25rem' }}>
+          <SectionTitle icon={AlertCircle} text="Regular / Ruim — vale ligar" right={periodLabel(period)} />
+          {ruins.length === 0 ? <Empty /> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto' }}>
+              {ruins.map(p => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, padding: '8px 10px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{nomeDe(p)}</div>
+                    <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{new Date(p.created_at).toLocaleDateString('pt-BR')}</div>
+                  </div>
+                  <span style={{ fontWeight: 700, color: NPS_META[p.winner].color }}>{p.winner}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="nx-card" style={{ padding: '1.25rem' }}>
+        <SectionTitle icon={ListChecks} text="Todas as respostas" right={periodLabel(period)} />
+        {responded.length === 0 ? <Empty /> : (
+          <table className="data-table" style={{ width: '100%', fontSize: 12 }}>
+            <thead><tr><th>Paciente</th><th>Data</th><th style={{ textAlign: 'right' }}>Resposta</th></tr></thead>
+            <tbody>
+              {[...responded].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(p => (
+                <tr key={p.id}>
+                  <td className="td-name">{nomeDe(p)}</td>
+                  <td>{new Date(p.created_at).toLocaleDateString('pt-BR')}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, color: NPS_META[p.winner].color }}>{p.winner}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   )
 }
