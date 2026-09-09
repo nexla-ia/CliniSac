@@ -29,6 +29,7 @@ const CompanyTutorial = lazy(() => import('./pages/company/CompanyTutorial'))
 const CompanyInstagram = lazy(() => import('./pages/company/CompanyInstagram'))
 const CompanyNews = lazy(() => import('./pages/company/CompanyNews'))
 const CompanyMetrics = lazy(() => import('./pages/company/CompanyMetrics'))
+const CompanyNps = lazy(() => import('./pages/company/CompanyNps'))
 const CompanyAdmin = lazy(() => import('./pages/company/CompanyAdmin'))
 const CompanySeguranca = lazy(() => import('./pages/company/CompanySeguranca'))
 const CompanyFeedback = lazy(() => import('./pages/company/CompanyFeedback'))
@@ -102,6 +103,7 @@ export default function App() {
               <Route path="novidades" element={<CompanyNews />} />
               <Route path="alertas" element={<CompanyAlerts />} />
               <Route path="metricas" element={<CompanyMetrics />} />
+              <Route path="nps" element={<CompanyNps />} />
               <Route path="admin" element={<CompanyAdmin />} />
               <Route path="seguranca" element={<CompanySeguranca />} />
               <Route path="feedback"  element={<CompanyFeedback />} />
