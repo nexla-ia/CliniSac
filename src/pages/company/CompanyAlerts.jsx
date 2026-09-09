@@ -198,7 +198,7 @@ export default function CompanyAlerts() {
 
   return (
     <div className="alerts-root">
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+      <div className="alerts-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
         <div>
           <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.3rem', color: 'var(--text-primary)', marginBottom: 4 }}>
             {aiEnabled ? 'Alertas da IA' : 'Encaminhamentos'}
@@ -221,7 +221,7 @@ export default function CompanyAlerts() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="alerts-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 6, fontSize: 12,
             color: realtimeStatus === 'connected' ? '#16A34A' : realtimeStatus === 'error' ? '#DC2626' : '#9CA3AF',
@@ -239,7 +239,7 @@ export default function CompanyAlerts() {
             {realtimeStatus === 'connected' ? 'Ao vivo' : realtimeStatus === 'error' ? 'Erro de conexão' : 'Conectando...'}
           </div>
 
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {['all', 'pending', 'resolved'].map(f => (
               <button
                 key={f}

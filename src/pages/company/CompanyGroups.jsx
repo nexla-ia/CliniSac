@@ -1454,11 +1454,11 @@ export default function CompanyGroups() {
               <button
                 className="chat-back-mobile nx-btn-ghost"
                 onClick={() => setSelected(null)}
-                style={{ display: 'none' }}
+                aria-label="Voltar para a lista de grupos"
               >
                 <ChevronLeft size={16} />
               </button>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+              <div className="chat-header-info" style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: '50%',
                   background: '#E0E7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
@@ -2160,7 +2160,7 @@ export default function CompanyGroups() {
               )}
 
               {/* Input row */}
-              <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
+              <div className="chat-composer-row" style={{ display: 'flex', gap: 8, position: 'relative' }}>
                 {/* Emoji picker popup */}
                 {showEmoji && (
                   <div ref={emojiPickerRef} style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 9999 }}>
@@ -2250,7 +2250,7 @@ export default function CompanyGroups() {
                 />
                 <input ref={fileInputRef} type="file" accept="image/*,application/pdf,video/*" style={{ display: 'none' }} onChange={handlePickFile} />
                 {!recording && !recordedAudio && !attachedFile && (
-                  <>
+                  <div className="chat-composer-extra">
                     <button
                       onClick={() => setShowEmoji(v => !v)}
                       title="Emojis"
@@ -2289,7 +2289,7 @@ export default function CompanyGroups() {
                     >
                       <MapPin size={15} />
                     </button>
-                  </>
+                  </div>
                 )}
                 <button
                   className="nx-btn-primary"

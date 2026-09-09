@@ -2704,7 +2704,7 @@ export default function CompanyConversations() {
                         </div>
                       )
                     })()}
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="chat-header-info" style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <div
                           style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)', cursor: saved ? 'pointer' : 'default', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
@@ -2729,6 +2729,10 @@ export default function CompanyConversations() {
                   </>
                 )
               })()}
+              {/* Ações do header numa faixa própria: no celular ela vira uma
+                  tira com scroll horizontal (em vez de quebrar linha e
+                  empilhar em cima do nome/telefone). */}
+              <div className="chat-header-actions">
               <button
                 className="nx-btn-ghost"
                 style={{ fontSize: 12, padding: '7px 10px', display: 'flex', alignItems: 'center', color: searchOpen ? '#2563EB' : 'var(--text-muted)', borderColor: searchOpen ? '#BFDBFE' : undefined, background: searchOpen ? '#EFF6FF' : undefined }}
@@ -2966,6 +2970,7 @@ export default function CompanyConversations() {
                   })()}
                 </>
               )}
+              </div>
             </div>
 
             {/* Busca dentro da conversa (histórico inteiro) */}
@@ -3710,7 +3715,7 @@ export default function CompanyConversations() {
                     </button>
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: 8, marginBottom: 10, position: 'relative' }}>
+                <div className="chat-composer-row" style={{ display: 'flex', gap: 8, marginBottom: 10, position: 'relative' }}>
                   {/* Emoji picker popup */}
                   {showEmoji && (
                     <div ref={emojiPickerRef} style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 9999 }}>
@@ -3762,7 +3767,7 @@ export default function CompanyConversations() {
                     onChange={handlePickFile}
                   />
                   {!recording && !recordedAudio && !attachedFile && (
-                    <>
+                    <div className="chat-composer-extra">
                       <button
                         onClick={() => setShowEmoji(v => !v)}
                         title="Emojis"
@@ -3828,7 +3833,7 @@ export default function CompanyConversations() {
                       >
                         <MapPin size={15} />
                       </button>
-                    </>
+                    </div>
                   )}
                   <button
                     className="nx-btn-primary"

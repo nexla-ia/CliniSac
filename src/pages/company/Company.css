@@ -221,6 +221,26 @@
   gap: 12px;
 }
 
+/* Wrapper das ações do header (busca, etiqueta, CRM, finalizar, mais).
+   Precisa de display:flex sempre — sem isso, fora do breakpoint de
+   celular (que é quem define o resto do comportamento dela) ela cai pro
+   display:block padrão de <div> e empilha os botões na vertical. */
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Bloco nome+telefone: flex-basis:auto (em vez do 0% que "flex:1" inline
+   aplica) pra ele entrar no cálculo de espaço pelo tamanho real do texto,
+   não do zero — senão a tira de ações (que não cresce, só existe no seu
+   tamanho natural) leva toda folga e o nome fica reduzido a poucos
+   caracteres mesmo quando sobra espaço de sobra na tela. */
+.chat-header-info {
+  flex-basis: auto !important;
+  min-width: 56px !important;
+}
+
 .chat-body {
   flex: 1;
   overflow-y: auto;
@@ -362,6 +382,14 @@
   font-size: 13px;
 }
 
+/* Botões extras do composer (emoji, msgs rápidas, anexo, áudio, local).
+   Agrupados num wrapper próprio pra poder virar tira com scroll horizontal
+   no celular sem tirar espaço fixo do campo de texto. */
+.chat-composer-extra {
+  display: flex;
+  gap: 8px;
+}
+
 /* Back button mobile na chat-header — escondido em desktop */
 .chat-back-mobile {
   display: none;
@@ -453,11 +481,13 @@
   .alerts-root {
     padding: 1rem;
   }
-  /* Chat-header em mobile: padding menor e gap reduzido */
+  /* Chat-header em mobile: padding menor e gap reduzido.
+     Sem flex-wrap aqui: em tablet (768-900px) ainda sobra largura pra
+     tudo numa linha só; a versão de celular estreito (<=680px) trata a
+     tira de ações separadamente, ver breakpoint abaixo. */
   .chat-header {
     padding: 10px 12px;
     gap: 8px;
-    flex-wrap: wrap;
   }
   .chat-header .nx-btn-ghost {
     padding: 7px 10px !important;
@@ -527,6 +557,69 @@
 
   /* Back button na chat-header */
   .chat-back-mobile { display: inline-flex; }
+
+  /* Chat-header em celular de verdade: nada de flex-wrap (isso que causava
+     os ícones se empilhando por cima do nome/telefone). O nome+telefone
+     truncam com "..." (já tinham minWidth:0/ellipsis inline) e a tira de
+     ações (busca, etiqueta, CRM, finalizar, mais) vira scroll horizontal
+     só nela — sem estourar a largura da tela. */
+  .chat-header {
+    flex-wrap: nowrap;
+  }
+  .chat-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex-shrink: 1;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .chat-header-actions::-webkit-scrollbar { display: none; }
+  /* Só ícone nos botões do header — sem o texto "Finalizar" etc. */
+  .chat-header .nx-btn-ghost .btn-label {
+    display: none;
+  }
+
+  /* Composer: o campo de texto nunca pode perder espaço pros botões.
+     Os botões extras (emoji, msgs rápidas, anexo, áudio, local) viram
+     uma tira com scroll horizontal só deles; textarea e enviar ficam
+     sempre com espaço garantido. */
+  .chat-composer-row {
+    flex-wrap: nowrap;
+  }
+  /* Mesmo problema do header: o textarea tinha flex-basis:0% (do "flex:1"
+     inline) e perdia toda a briga de espaço pra tira de botões, que tem
+     flex-grow:0 mas tamanho natural inteiro — sobrava ~40px pro campo de
+     texto. flex-basis:auto + piso mínimo garante um campo digitável. */
+  .chat-composer-input {
+    flex-basis: auto !important;
+    min-width: 90px !important;
+  }
+  .chat-composer-extra {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .chat-composer-extra::-webkit-scrollbar { display: none; }
+  .chat-composer-extra > button {
+    flex-shrink: 0;
+  }
+
+  /* Cabeçalho da página Alertas: título vs. status+filtros brigando pelo
+     mesmo espaço fazia o título quebrar palavra por palavra. Empilha em
+     vez de espremer. */
+  .alerts-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .alerts-header-actions {
+    justify-content: flex-start !important;
+  }
 }
 
 @media (max-width: 540px) {
