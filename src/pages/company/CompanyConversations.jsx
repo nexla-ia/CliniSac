@@ -3734,31 +3734,60 @@ export default function CompanyConversations() {
                       </Suspense>
                     </div>
                   )}
-                  <textarea
-                    ref={composerRef}
-                    rows={1}
-                    className="nx-input chat-composer-input"
-                    style={{ flex: 1, resize: 'none', minHeight: 38, maxHeight: 120, overflowY: 'auto', lineHeight: 1.4, fontFamily: 'inherit' }}
-                    placeholder={
-                      !canRespond(selected) ? "Conversa está com outro atendente — você não pode responder"
-                      : recordedAudio ? "Mensagem opcional para acompanhar o áudio..."
-                      : attachedFile ? "Mensagem opcional para acompanhar o arquivo..."
-                      : "Digite uma mensagem...  (Shift+Enter pula linha)"
-                    }
-                    value={msgText}
-                    onChange={e => setMsgText(e.target.value)}
-                    onPaste={handlePaste}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        handleSend()
+                  {/* Campo de texto + emoji/msg-rápida "dentro" dele (estilo WhatsApp
+                      mobile): no celular esses 2 botões viram um overlay dentro do
+                      input via CSS; no desktop continuam do lado, sem mudança. */}
+                  <div className="chat-composer-inputwrap" style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <textarea
+                      ref={composerRef}
+                      rows={1}
+                      className="nx-input chat-composer-input"
+                      style={{ flex: 1, resize: 'none', minHeight: 38, maxHeight: 120, overflowY: 'auto', lineHeight: 1.4, fontFamily: 'inherit' }}
+                      placeholder={
+                        !canRespond(selected) ? "Conversa está com outro atendente — você não pode responder"
+                        : recordedAudio ? "Mensagem opcional para acompanhar o áudio..."
+                        : attachedFile ? "Mensagem opcional para acompanhar o arquivo..."
+                        : "Digite uma mensagem...  (Shift+Enter pula linha)"
                       }
-                      if (e.key === 'Escape' && replyingTo) { setReplyingTo(null) }
-                    }}
-                    // NÃO desabilita durante o envio: a caixa continua focada e já dá
-                    // pra digitar a próxima (o texto é limpo no início do handleSend).
-                    disabled={recording || !canRespond(selected)}
-                  />
+                      value={msgText}
+                      onChange={e => setMsgText(e.target.value)}
+                      onPaste={handlePaste}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          handleSend()
+                        }
+                        if (e.key === 'Escape' && replyingTo) { setReplyingTo(null) }
+                      }}
+                      // NÃO desabilita durante o envio: a caixa continua focada e já dá
+                      // pra digitar a próxima (o texto é limpo no início do handleSend).
+                      disabled={recording || !canRespond(selected)}
+                    />
+                    {!recording && !recordedAudio && !attachedFile && (
+                      <div className="chat-composer-inline-icons">
+                        <button
+                          onClick={() => setShowEmoji(v => !v)}
+                          title="Emojis"
+                          disabled={!canRespond(selected)}
+                          style={{
+                            padding: '0 12px', flexShrink: 0,
+                            background: showEmoji ? '#FEF9C3' : '#fff',
+                            border: `1px solid ${showEmoji ? '#FDE047' : 'var(--border)'}`,
+                            borderRadius: 8, fontSize: 17, lineHeight: 1,
+                            cursor: canRespond(selected) ? 'pointer' : 'not-allowed',
+                            opacity: canRespond(selected) ? 1 : 0.45,
+                            display: 'inline-flex', alignItems: 'center',
+                          }}
+                        >
+                          😊
+                        </button>
+                        <QuickMessages
+                          instancia={instance}
+                          onSelect={text => setMsgText(prev => prev ? prev + ' ' + text : text)}
+                        />
+                      </div>
+                    )}
+                  </div>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -3768,26 +3797,6 @@ export default function CompanyConversations() {
                   />
                   {!recording && !recordedAudio && !attachedFile && (
                     <div className="chat-composer-extra">
-                      <button
-                        onClick={() => setShowEmoji(v => !v)}
-                        title="Emojis"
-                        disabled={!canRespond(selected)}
-                        style={{
-                          padding: '0 12px', flexShrink: 0,
-                          background: showEmoji ? '#FEF9C3' : '#fff',
-                          border: `1px solid ${showEmoji ? '#FDE047' : 'var(--border)'}`,
-                          borderRadius: 8, fontSize: 17, lineHeight: 1,
-                          cursor: canRespond(selected) ? 'pointer' : 'not-allowed',
-                          opacity: canRespond(selected) ? 1 : 0.45,
-                          display: 'inline-flex', alignItems: 'center',
-                        }}
-                      >
-                        😊
-                      </button>
-                      <QuickMessages
-                        instancia={instance}
-                        onSelect={text => setMsgText(prev => prev ? prev + ' ' + text : text)}
-                      />
                       <button
                         onClick={() => fileInputRef.current?.click()}
                         title="Anexar imagem, PDF ou vídeo"
@@ -3802,21 +3811,6 @@ export default function CompanyConversations() {
                         }}
                       >
                         <Paperclip size={15} />
-                      </button>
-                      <button
-                        onClick={startRecording}
-                        title="Gravar áudio"
-                        disabled={!canRespond(selected)}
-                        style={{
-                          padding: '0 14px', flexShrink: 0,
-                          background: '#fff', border: '1px solid var(--border)',
-                          borderRadius: 8, color: '#6B7280',
-                          cursor: canRespond(selected) ? 'pointer' : 'not-allowed',
-                          opacity: canRespond(selected) ? 1 : 0.45,
-                          display: 'inline-flex', alignItems: 'center',
-                        }}
-                      >
-                        <Mic size={15} />
                       </button>
                       <button
                         onClick={() => setLocationModal({ input: '', name: '', address: '' })}
@@ -3835,14 +3829,29 @@ export default function CompanyConversations() {
                       </button>
                     </div>
                   )}
-                  <button
-                    className="nx-btn-primary"
-                    style={{ padding: '0 16px', flexShrink: 0 }}
-                    onClick={handleSend}
-                    disabled={(!msgText.trim() && !recordedAudio && !attachedFile && !recording) || sending || !canRespond(selected)}
-                  >
-                    <Send size={14} />
-                  </button>
+                  {/* Botão único que troca de lugar: microfone quando o campo tá
+                      vazio (ação padrão, igual WhatsApp), enviar assim que tiver
+                      texto/áudio/arquivo prontos — nunca os dois ao mesmo tempo. */}
+                  {(msgText.trim() || recordedAudio || attachedFile || recording) ? (
+                    <button
+                      className="nx-btn-primary"
+                      style={{ padding: '0 16px', flexShrink: 0 }}
+                      onClick={handleSend}
+                      disabled={(!msgText.trim() && !recordedAudio && !attachedFile) || sending || !canRespond(selected)}
+                    >
+                      <Send size={14} />
+                    </button>
+                  ) : (
+                    <button
+                      className="nx-btn-primary"
+                      style={{ padding: '0 16px', flexShrink: 0 }}
+                      onClick={startRecording}
+                      title="Gravar áudio"
+                      disabled={!canRespond(selected)}
+                    >
+                      <Mic size={15} />
+                    </button>
+                  )}
                 </div>
                 <a
                   href={`https://wa.me/${selected.phone}`}

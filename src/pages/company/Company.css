@@ -382,12 +382,22 @@
   font-size: 13px;
 }
 
-/* Botões extras do composer (emoji, msgs rápidas, anexo, áudio, local).
-   Agrupados num wrapper próprio pra poder virar tira com scroll horizontal
-   no celular sem tirar espaço fixo do campo de texto. */
+/* Botões extras do composer (anexo, local). Agrupados num wrapper próprio
+   pra poder virar tira com scroll horizontal no celular sem tirar espaço
+   fixo do campo de texto. */
 .chat-composer-extra {
   display: flex;
   gap: 8px;
+}
+
+/* Emoji + msg rápida ficam "dentro" do campo de texto (como o WhatsApp
+   mobile): no desktop é só uma fileira normal ao lado do textarea; no
+   celular (breakpoint abaixo) vira overlay por cima do input. */
+.chat-composer-inline-icons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 /* Back button mobile na chat-header — escondido em desktop */
@@ -583,19 +593,36 @@
   }
 
   /* Composer: o campo de texto nunca pode perder espaço pros botões.
-     Os botões extras (emoji, msgs rápidas, anexo, áudio, local) viram
-     uma tira com scroll horizontal só deles; textarea e enviar ficam
-     sempre com espaço garantido. */
+     Os botões extras (anexo, local) viram uma tira com scroll horizontal
+     só deles; textarea e enviar ficam sempre com espaço garantido. */
   .chat-composer-row {
     flex-wrap: nowrap;
   }
-  /* Mesmo problema do header: o textarea tinha flex-basis:0% (do "flex:1"
-     inline) e perdia toda a briga de espaço pra tira de botões, que tem
-     flex-grow:0 mas tamanho natural inteiro — sobrava ~40px pro campo de
-     texto. flex-basis:auto + piso mínimo garante um campo digitável. */
+  /* Mesmo problema do header: o wrapper do campo tinha flex-basis:0% (do
+     "flex:1" inline) e perdia a briga de espaço pra tira de botões, que
+     tem flex-grow:0 mas tamanho natural inteiro. flex-basis:auto + piso
+     mínimo garante um campo digitável. */
+  .chat-composer-inputwrap {
+    flex-basis: auto !important;
+    min-width: 90px !important;
+  }
+  /* Emoji + msg rápida saem da fileira e viram overlay dentro do próprio
+     campo de texto (estilo WhatsApp mobile) — o texto ganha padding-right
+     pra não passar por baixo dos ícones. */
+  .chat-composer-inline-icons {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    gap: 2px;
+  }
+  .chat-composer-inline-icons button {
+    padding: 0 8px !important;
+  }
   .chat-composer-input {
     flex-basis: auto !important;
     min-width: 90px !important;
+    padding-right: 74px !important;
   }
   .chat-composer-extra {
     flex-shrink: 1;

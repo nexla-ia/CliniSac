@@ -2232,55 +2232,57 @@ export default function CompanyGroups() {
                     })}
                   </div>
                 )}
-                <textarea
-                  ref={composerRef}
-                  rows={1}
-                  className="nx-input chat-composer-input"
-                  style={{ flex: 1, resize: 'none', minHeight: 38, maxHeight: 120, overflowY: 'auto', lineHeight: 1.4, fontFamily: 'inherit' }}
-                  placeholder={attachedFile ? 'Mensagem opcional para acompanhar o arquivo…' : recordedAudio ? 'Mensagem opcional para acompanhar o áudio…' : 'Mensagem para o grupo…  (Shift+Enter pula linha)'}
-                  value={msgText}
-                  onChange={handleMsgChange}
-                  onPaste={handlePaste}
-                  onKeyDown={e => {
-                    if (e.key === 'Escape') { setMentionOpen(false); if (replyingTo) setReplyingTo(null); return }
-                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
-                  }}
-                  // não desabilita no envio: caixa continua focada pra digitar a próxima
-                  disabled={recording}
-                />
+                {/* Campo de texto + emoji/msg-rápida "dentro" dele (estilo WhatsApp
+                    mobile): no celular esses 2 botões viram um overlay dentro do
+                    input via CSS; no desktop continuam do lado, sem mudança. */}
+                <div className="chat-composer-inputwrap" style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <textarea
+                    ref={composerRef}
+                    rows={1}
+                    className="nx-input chat-composer-input"
+                    style={{ flex: 1, resize: 'none', minHeight: 38, maxHeight: 120, overflowY: 'auto', lineHeight: 1.4, fontFamily: 'inherit' }}
+                    placeholder={attachedFile ? 'Mensagem opcional para acompanhar o arquivo…' : recordedAudio ? 'Mensagem opcional para acompanhar o áudio…' : 'Mensagem para o grupo…  (Shift+Enter pula linha)'}
+                    value={msgText}
+                    onChange={handleMsgChange}
+                    onPaste={handlePaste}
+                    onKeyDown={e => {
+                      if (e.key === 'Escape') { setMentionOpen(false); if (replyingTo) setReplyingTo(null); return }
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+                    }}
+                    // não desabilita no envio: caixa continua focada pra digitar a próxima
+                    disabled={recording}
+                  />
+                  {!recording && !recordedAudio && !attachedFile && (
+                    <div className="chat-composer-inline-icons">
+                      <button
+                        onClick={() => setShowEmoji(v => !v)}
+                        title="Emojis"
+                        style={{
+                          padding: '0 12px', flexShrink: 0,
+                          background: showEmoji ? '#FEF9C3' : '#fff',
+                          border: `1px solid ${showEmoji ? '#FDE047' : 'var(--border)'}`,
+                          borderRadius: 8, fontSize: 17, lineHeight: 1,
+                          cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
+                        }}
+                      >
+                        😊
+                      </button>
+                      <QuickMessages
+                        instancia={instance}
+                        onSelect={text => setMsgText(prev => prev ? prev + ' ' + text : text)}
+                      />
+                    </div>
+                  )}
+                </div>
                 <input ref={fileInputRef} type="file" accept="image/*,application/pdf,video/*" style={{ display: 'none' }} onChange={handlePickFile} />
                 {!recording && !recordedAudio && !attachedFile && (
                   <div className="chat-composer-extra">
-                    <button
-                      onClick={() => setShowEmoji(v => !v)}
-                      title="Emojis"
-                      style={{
-                        padding: '0 12px', flexShrink: 0,
-                        background: showEmoji ? '#FEF9C3' : '#fff',
-                        border: `1px solid ${showEmoji ? '#FDE047' : 'var(--border)'}`,
-                        borderRadius: 8, fontSize: 17, lineHeight: 1,
-                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
-                      }}
-                    >
-                      😊
-                    </button>
-                    <QuickMessages
-                      instancia={instance}
-                      onSelect={text => setMsgText(prev => prev ? prev + ' ' + text : text)}
-                    />
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       title="Anexar imagem, PDF ou vídeo"
                       style={{ padding: '0 14px', flexShrink: 0, background: '#fff', border: '1px solid var(--border)', borderRadius: 8, color: '#6B7280', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
                     >
                       <Paperclip size={15} />
-                    </button>
-                    <button
-                      onClick={startRecording}
-                      title="Gravar áudio"
-                      style={{ padding: '0 14px', flexShrink: 0, background: '#fff', border: '1px solid var(--border)', borderRadius: 8, color: '#6B7280', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
-                    >
-                      <Mic size={15} />
                     </button>
                     <button
                       onClick={() => setLocationModal({ input: '', name: '', address: '' })}
@@ -2291,14 +2293,28 @@ export default function CompanyGroups() {
                     </button>
                   </div>
                 )}
-                <button
-                  className="nx-btn-primary"
-                  style={{ padding: '0 16px', flexShrink: 0 }}
-                  onClick={handleSend}
-                  disabled={(!msgText.trim() && !recordedAudio && !attachedFile && !recording) || sending}
-                >
-                  <Send size={14} />
-                </button>
+                {/* Botão único que troca de lugar: microfone quando o campo tá
+                    vazio (ação padrão, igual WhatsApp), enviar assim que tiver
+                    texto/áudio/arquivo prontos — nunca os dois ao mesmo tempo. */}
+                {(msgText.trim() || recordedAudio || attachedFile || recording) ? (
+                  <button
+                    className="nx-btn-primary"
+                    style={{ padding: '0 16px', flexShrink: 0 }}
+                    onClick={handleSend}
+                    disabled={(!msgText.trim() && !recordedAudio && !attachedFile) || sending}
+                  >
+                    <Send size={14} />
+                  </button>
+                ) : (
+                  <button
+                    className="nx-btn-primary"
+                    style={{ padding: '0 16px', flexShrink: 0 }}
+                    onClick={startRecording}
+                    title="Gravar áudio"
+                  >
+                    <Mic size={15} />
+                  </button>
+                )}
               </div>
             </div>
           </>
