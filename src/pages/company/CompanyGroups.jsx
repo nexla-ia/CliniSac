@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { fetchGruposLista } from '../../lib/queries'
 import { detectSendError, isN8nInfraNoise } from '../../lib/sendStatus'
-import { Users, User, ChevronLeft, Send, Mic, Square, Paperclip, Trash2, Film, FileText, BellOff, Bell, ChevronRight, Loader2, Phone, X, MessageCircle, UserPlus, Check, Download, Pencil, Reply, Mail, MailOpen, Search, MapPin, ExternalLink, CheckCircle2, LocateFixed } from 'lucide-react'
+import { Users, User, ChevronLeft, Send, Mic, Square, Paperclip, Trash2, Film, FileText, BellOff, Bell, ChevronRight, Loader2, Phone, X, MessageCircle, UserPlus, Check, Download, Pencil, Reply, Mail, MailOpen, Search, MapPin, ExternalLink, CheckCircle2, LocateFixed, Plus } from 'lucide-react'
 import { useContactTags, TagList, TagPicker, TagFilter, buildTagFilter } from '../../components/Tags'
 import QuickMessages from '../../components/QuickMessages'
 import ImageLightbox from '../../components/ImageLightbox'
@@ -260,6 +260,7 @@ export default function CompanyGroups() {
   const [searchLoading, setSearchLoading] = useState(false)
   const [jumpingTo, setJumpingTo]         = useState(null)
   const [showEmoji, setShowEmoji] = useState(false)
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false) // "+" do composer: emoji, msg rápida, arquivo, local
   const [mentionMembers, setMentionMembers] = useState([])   // lista de membros para mention
   const [mentionLoading, setMentionLoading] = useState(false)
   const [mentionOpen, setMentionOpen] = useState(false)
@@ -2160,7 +2161,7 @@ export default function CompanyGroups() {
               )}
 
               {/* Input row */}
-              <div className="chat-composer-row" style={{ display: 'flex', gap: 8, position: 'relative' }}>
+              <div className="chat-composer-row" style={{ display: 'flex', gap: 8, position: 'relative', alignItems: 'flex-end' }}>
                 {/* Emoji picker popup */}
                 {showEmoji && (
                   <div ref={emojiPickerRef} style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 9999 }}>
@@ -2232,70 +2233,86 @@ export default function CompanyGroups() {
                     })}
                   </div>
                 )}
-                {/* Campo de texto + emoji/msg-rápida "dentro" dele (estilo WhatsApp
-                    mobile): no celular esses 2 botões viram um overlay dentro do
-                    input via CSS; no desktop continuam do lado, sem mudança. */}
-                <div className="chat-composer-inputwrap" style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <textarea
-                    ref={composerRef}
-                    rows={1}
-                    className="nx-input chat-composer-input"
-                    style={{ flex: 1, resize: 'none', minHeight: 38, maxHeight: 120, overflowY: 'auto', lineHeight: 1.4, fontFamily: 'inherit' }}
-                    placeholder={attachedFile ? 'Mensagem opcional para acompanhar o arquivo…' : recordedAudio ? 'Mensagem opcional para acompanhar o áudio…' : 'Mensagem para o grupo…  (Shift+Enter pula linha)'}
-                    value={msgText}
-                    onChange={handleMsgChange}
-                    onPaste={handlePaste}
-                    onKeyDown={e => {
-                      if (e.key === 'Escape') { setMentionOpen(false); if (replyingTo) setReplyingTo(null); return }
-                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
-                    }}
-                    // não desabilita no envio: caixa continua focada pra digitar a próxima
-                    disabled={recording}
-                  />
-                  {!recording && !recordedAudio && !attachedFile && (
-                    <div className="chat-composer-inline-icons">
-                      <button
-                        onClick={() => setShowEmoji(v => !v)}
-                        title="Emojis"
-                        style={{
-                          padding: '0 12px', flexShrink: 0,
-                          background: showEmoji ? '#FEF9C3' : '#fff',
-                          border: `1px solid ${showEmoji ? '#FDE047' : 'var(--border)'}`,
-                          borderRadius: 8, fontSize: 17, lineHeight: 1,
-                          cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
-                        }}
-                      >
-                        😊
-                      </button>
-                      <QuickMessages
-                        instancia={instance}
-                        onSelect={text => setMsgText(prev => prev ? prev + ' ' + text : text)}
-                      />
-                    </div>
-                  )}
-                </div>
                 <input ref={fileInputRef} type="file" accept="image/*,application/pdf,video/*" style={{ display: 'none' }} onChange={handlePickFile} />
+                {/* "+" agrupa emoji, msg rápida, arquivo e localização — igual
+                    o menu de anexo do WhatsApp, pra não poluir a fileira. */}
                 {!recording && !recordedAudio && !attachedFile && (
-                  <div className="chat-composer-extra">
+                  <div style={{ position: 'relative', flexShrink: 0 }}>
                     <button
-                      onClick={() => fileInputRef.current?.click()}
-                      title="Anexar imagem, PDF ou vídeo"
-                      style={{ padding: '0 14px', flexShrink: 0, background: '#fff', border: '1px solid var(--border)', borderRadius: 8, color: '#6B7280', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+                      className="nx-btn-ghost"
+                      onClick={() => setAttachMenuOpen(v => !v)}
+                      title="Anexar"
+                      style={{
+                        padding: '0 12px', height: 38, flexShrink: 0,
+                        background: attachMenuOpen ? '#EFF6FF' : '#fff',
+                        borderColor: attachMenuOpen ? '#BFDBFE' : undefined,
+                        color: attachMenuOpen ? '#2563EB' : '#6B7280',
+                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
+                      }}
                     >
-                      <Paperclip size={15} />
+                      <Plus size={18} />
                     </button>
-                    <button
-                      onClick={() => setLocationModal({ input: '', name: '', address: '' })}
-                      title="Enviar localização"
-                      style={{ padding: '0 14px', flexShrink: 0, background: '#fff', border: '1px solid var(--border)', borderRadius: 8, color: '#6B7280', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
-                    >
-                      <MapPin size={15} />
-                    </button>
+                    {attachMenuOpen && (
+                      <>
+                        <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setAttachMenuOpen(false)} />
+                        <div style={{
+                          position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 51,
+                          background: '#fff', border: '1px solid var(--border)', borderRadius: 10,
+                          boxShadow: '0 8px 28px rgba(0,0,0,0.14)', padding: 6, minWidth: 190,
+                        }}>
+                          <button
+                            onClick={() => { setShowEmoji(true); setAttachMenuOpen(false) }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 10px', border: 'none', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#0F172A', textAlign: 'left' }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#F1F5F9'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <span style={{ fontSize: 16, lineHeight: 1 }}>😊</span> Emoji
+                          </button>
+                          <QuickMessages
+                            variant="menurow"
+                            instancia={instance}
+                            onSelect={text => { setMsgText(prev => prev ? prev + ' ' + text : text); setAttachMenuOpen(false) }}
+                          />
+                          <button
+                            onClick={() => { fileInputRef.current?.click(); setAttachMenuOpen(false) }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 10px', border: 'none', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#0F172A', textAlign: 'left' }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#F1F5F9'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <Paperclip size={15} color="#6B7280" /> Arquivo
+                          </button>
+                          <button
+                            onClick={() => { setLocationModal({ input: '', name: '', address: '' }); setAttachMenuOpen(false) }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 10px', border: 'none', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#0F172A', textAlign: 'left' }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#F1F5F9'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <MapPin size={15} color="#6B7280" /> Localização
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
+                <textarea
+                  ref={composerRef}
+                  rows={1}
+                  className="nx-input chat-composer-input"
+                  style={{ flex: 1, minWidth: 0, resize: 'none', minHeight: 38, maxHeight: 120, overflowY: 'auto', lineHeight: 1.4, fontFamily: 'inherit' }}
+                  placeholder={attachedFile ? 'Mensagem opcional para acompanhar o arquivo…' : recordedAudio ? 'Mensagem opcional para acompanhar o áudio…' : 'Mensagem para o grupo…  (Shift+Enter pula linha)'}
+                  value={msgText}
+                  onChange={handleMsgChange}
+                  onPaste={handlePaste}
+                  onKeyDown={e => {
+                    if (e.key === 'Escape') { setMentionOpen(false); if (replyingTo) setReplyingTo(null); return }
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+                  }}
+                  // não desabilita no envio: caixa continua focada pra digitar a próxima
+                  disabled={recording}
+                />
                 {/* Botão único que troca de lugar: microfone quando o campo tá
-                    vazio (ação padrão, igual WhatsApp), enviar assim que tiver
-                    texto/áudio/arquivo prontos — nunca os dois ao mesmo tempo. */}
+                    vazio (ação padrão, igual WhatsApp), some assim que começa a
+                    digitar e vira enviar — nunca os dois ao mesmo tempo. */}
                 {(msgText.trim() || recordedAudio || attachedFile || recording) ? (
                   <button
                     className="nx-btn-primary"

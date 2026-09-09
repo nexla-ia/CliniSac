@@ -591,49 +591,23 @@
   .chat-header .nx-btn-ghost .btn-label {
     display: none;
   }
+  /* "Etiquetas" também vira só ícone no header do celular — o texto some,
+     o número de etiquetas aplicadas continua aparecendo no badge. */
+  .chat-header .tagpicker-trigger .tagpicker-label {
+    display: none;
+  }
+  .chat-header .tagpicker-trigger {
+    padding: 6px 9px !important;
+  }
 
-  /* Composer: o campo de texto nunca pode perder espaço pros botões.
-     Os botões extras (anexo, local) viram uma tira com scroll horizontal
-     só deles; textarea e enviar ficam sempre com espaço garantido. */
+  /* Composer: campo de texto sempre com espaço garantido — agora só disputa
+     com o "+" (menu de anexo) e o microfone/enviar, os dois de tamanho fixo
+     pequeno, então não tem mais aquela disputa de espaço de antes. */
   .chat-composer-row {
     flex-wrap: nowrap;
   }
-  /* Mesmo problema do header: o wrapper do campo tinha flex-basis:0% (do
-     "flex:1" inline) e perdia a briga de espaço pra tira de botões, que
-     tem flex-grow:0 mas tamanho natural inteiro. flex-basis:auto + piso
-     mínimo garante um campo digitável. */
-  .chat-composer-inputwrap {
-    flex-basis: auto !important;
-    min-width: 90px !important;
-  }
-  /* Emoji + msg rápida saem da fileira e viram overlay dentro do próprio
-     campo de texto (estilo WhatsApp mobile) — o texto ganha padding-right
-     pra não passar por baixo dos ícones. */
-  .chat-composer-inline-icons {
-    position: absolute;
-    right: 4px;
-    top: 50%;
-    transform: translateY(-50%);
-    gap: 2px;
-  }
-  .chat-composer-inline-icons button {
-    padding: 0 8px !important;
-  }
   .chat-composer-input {
-    flex-basis: auto !important;
-    min-width: 90px !important;
-    padding-right: 74px !important;
-  }
-  .chat-composer-extra {
-    flex-shrink: 1;
-    min-width: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-  .chat-composer-extra::-webkit-scrollbar { display: none; }
-  .chat-composer-extra > button {
-    flex-shrink: 0;
+    min-width: 60px !important;
   }
 
   /* Cabeçalho da página Alertas: título vs. status+filtros brigando pelo

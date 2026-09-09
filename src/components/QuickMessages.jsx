@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Zap, Plus, Trash2, Check, Loader2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
-export default function QuickMessages({ instancia, onSelect }) {
+export default function QuickMessages({ instancia, onSelect, variant }) {
   const [open, setOpen]           = useState(false)
   const [messages, setMessages]   = useState([])
   const [loading, setLoading]     = useState(false)
@@ -65,22 +65,39 @@ export default function QuickMessages({ instancia, onSelect }) {
   }
 
   return (
-    <div style={{ position: 'relative', flexShrink: 0 }}>
-      <button
-        onClick={() => setOpen(v => !v)}
-        title="Mensagens rápidas"
-        style={{
-          padding: '0 13px', height: '100%', minHeight: 38,
-          background: open ? '#FFF7ED' : '#fff',
-          border: `1px solid ${open ? '#FB923C' : 'var(--border)'}`,
-          borderRadius: 8, cursor: 'pointer',
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          color: open ? '#EA580C' : '#6B7280',
-          transition: 'all .15s',
-        }}
-      >
-        <Zap size={15} fill={open ? '#EA580C' : 'none'} />
-      </button>
+    <div style={{ position: 'relative', flexShrink: 0, width: variant === 'menurow' ? '100%' : undefined }}>
+      {variant === 'menurow' ? (
+        <button
+          onClick={() => setOpen(v => !v)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+            padding: '9px 10px', border: 'none', borderRadius: 7,
+            background: open ? '#FFF7ED' : 'transparent', cursor: 'pointer',
+            fontSize: 13, fontWeight: 500, color: '#0F172A', textAlign: 'left',
+          }}
+          onMouseEnter={e => { if (!open) e.currentTarget.style.background = '#F1F5F9' }}
+          onMouseLeave={e => { if (!open) e.currentTarget.style.background = 'transparent' }}
+        >
+          <Zap size={15} color="#EA580C" fill={open ? '#EA580C' : 'none'} />
+          <span>Mensagem rápida</span>
+        </button>
+      ) : (
+        <button
+          onClick={() => setOpen(v => !v)}
+          title="Mensagens rápidas"
+          style={{
+            padding: '0 13px', height: '100%', minHeight: 38,
+            background: open ? '#FFF7ED' : '#fff',
+            border: `1px solid ${open ? '#FB923C' : 'var(--border)'}`,
+            borderRadius: 8, cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            color: open ? '#EA580C' : '#6B7280',
+            transition: 'all .15s',
+          }}
+        >
+          <Zap size={15} fill={open ? '#EA580C' : 'none'} />
+        </button>
+      )}
 
       {open && (
         <div

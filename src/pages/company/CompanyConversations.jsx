@@ -477,6 +477,7 @@ export default function CompanyConversations() {
   const [savingEdit, setSavingEdit]       = useState(false)
   const [showEmoji, setShowEmoji]         = useState(false)
   const emojiPickerRef                    = useRef(null)
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false) // "+" do composer: emoji, msg rápida, arquivo, local
   const [readsMap, setReadsMap]           = useState({}) // session_id → last_read_at ISO
   const [readsLoaded, setReadsLoaded]     = useState(false)
   const [unreadCounts, setUnreadCounts]   = useState({}) // session_id → number
@@ -2721,9 +2722,13 @@ export default function CompanyConversations() {
                           <Pencil size={12} />
                         </button>
                       </div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {/* Uma linha só, com "..." no fim em vez de quebrar — antes
+                          era um flex row de 2 spans que "brigavam" por espaço e
+                          embolava telefone+contador em 2-3 linhas no celular. */}
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {headerName && <span style={{ fontFamily: 'monospace' }}>{selected.phone}</span>}
-                        {!loadingMsgs && <span>{messages.length} mensagem(ns)</span>}
+                        {headerName && !loadingMsgs && ' · '}
+                        {!loadingMsgs && `${messages.length} mensagem(ns)`}
                       </div>
                     </div>
                   </>
@@ -3715,7 +3720,7 @@ export default function CompanyConversations() {
                     </button>
                   </div>
                 )}
-                <div className="chat-composer-row" style={{ display: 'flex', gap: 8, marginBottom: 10, position: 'relative' }}>
+                <div className="chat-composer-row" style={{ display: 'flex', gap: 8, marginBottom: 10, position: 'relative', alignItems: 'flex-end' }}>
                   {/* Emoji picker popup */}
                   {showEmoji && (
                     <div ref={emojiPickerRef} style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 9999 }}>
@@ -3734,60 +3739,6 @@ export default function CompanyConversations() {
                       </Suspense>
                     </div>
                   )}
-                  {/* Campo de texto + emoji/msg-rápida "dentro" dele (estilo WhatsApp
-                      mobile): no celular esses 2 botões viram um overlay dentro do
-                      input via CSS; no desktop continuam do lado, sem mudança. */}
-                  <div className="chat-composer-inputwrap" style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <textarea
-                      ref={composerRef}
-                      rows={1}
-                      className="nx-input chat-composer-input"
-                      style={{ flex: 1, resize: 'none', minHeight: 38, maxHeight: 120, overflowY: 'auto', lineHeight: 1.4, fontFamily: 'inherit' }}
-                      placeholder={
-                        !canRespond(selected) ? "Conversa está com outro atendente — você não pode responder"
-                        : recordedAudio ? "Mensagem opcional para acompanhar o áudio..."
-                        : attachedFile ? "Mensagem opcional para acompanhar o arquivo..."
-                        : "Digite uma mensagem...  (Shift+Enter pula linha)"
-                      }
-                      value={msgText}
-                      onChange={e => setMsgText(e.target.value)}
-                      onPaste={handlePaste}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault()
-                          handleSend()
-                        }
-                        if (e.key === 'Escape' && replyingTo) { setReplyingTo(null) }
-                      }}
-                      // NÃO desabilita durante o envio: a caixa continua focada e já dá
-                      // pra digitar a próxima (o texto é limpo no início do handleSend).
-                      disabled={recording || !canRespond(selected)}
-                    />
-                    {!recording && !recordedAudio && !attachedFile && (
-                      <div className="chat-composer-inline-icons">
-                        <button
-                          onClick={() => setShowEmoji(v => !v)}
-                          title="Emojis"
-                          disabled={!canRespond(selected)}
-                          style={{
-                            padding: '0 12px', flexShrink: 0,
-                            background: showEmoji ? '#FEF9C3' : '#fff',
-                            border: `1px solid ${showEmoji ? '#FDE047' : 'var(--border)'}`,
-                            borderRadius: 8, fontSize: 17, lineHeight: 1,
-                            cursor: canRespond(selected) ? 'pointer' : 'not-allowed',
-                            opacity: canRespond(selected) ? 1 : 0.45,
-                            display: 'inline-flex', alignItems: 'center',
-                          }}
-                        >
-                          😊
-                        </button>
-                        <QuickMessages
-                          instancia={instance}
-                          onSelect={text => setMsgText(prev => prev ? prev + ' ' + text : text)}
-                        />
-                      </div>
-                    )}
-                  </div>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -3795,43 +3746,97 @@ export default function CompanyConversations() {
                     style={{ display: 'none' }}
                     onChange={handlePickFile}
                   />
+                  {/* "+" agrupa emoji, msg rápida, arquivo e localização — igual
+                      o menu de anexo do WhatsApp, pra não poluir a fileira. */}
                   {!recording && !recordedAudio && !attachedFile && (
-                    <div className="chat-composer-extra">
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
                       <button
-                        onClick={() => fileInputRef.current?.click()}
-                        title="Anexar imagem, PDF ou vídeo"
+                        className="nx-btn-ghost"
+                        onClick={() => setAttachMenuOpen(v => !v)}
+                        title="Anexar"
                         disabled={!canRespond(selected)}
                         style={{
-                          padding: '0 14px', flexShrink: 0,
-                          background: '#fff', border: '1px solid var(--border)',
-                          borderRadius: 8, color: '#6B7280',
+                          padding: '0 12px', height: 38, flexShrink: 0,
+                          background: attachMenuOpen ? '#EFF6FF' : '#fff',
+                          borderColor: attachMenuOpen ? '#BFDBFE' : undefined,
+                          color: attachMenuOpen ? '#2563EB' : '#6B7280',
                           cursor: canRespond(selected) ? 'pointer' : 'not-allowed',
                           opacity: canRespond(selected) ? 1 : 0.45,
                           display: 'inline-flex', alignItems: 'center',
                         }}
                       >
-                        <Paperclip size={15} />
+                        <Plus size={18} />
                       </button>
-                      <button
-                        onClick={() => setLocationModal({ input: '', name: '', address: '' })}
-                        title="Enviar localização"
-                        disabled={!canRespond(selected)}
-                        style={{
-                          padding: '0 14px', flexShrink: 0,
-                          background: '#fff', border: '1px solid var(--border)',
-                          borderRadius: 8, color: '#6B7280',
-                          cursor: canRespond(selected) ? 'pointer' : 'not-allowed',
-                          opacity: canRespond(selected) ? 1 : 0.45,
-                          display: 'inline-flex', alignItems: 'center',
-                        }}
-                      >
-                        <MapPin size={15} />
-                      </button>
+                      {attachMenuOpen && (
+                        <>
+                          <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setAttachMenuOpen(false)} />
+                          <div style={{
+                            position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 51,
+                            background: '#fff', border: '1px solid var(--border)', borderRadius: 10,
+                            boxShadow: '0 8px 28px rgba(0,0,0,0.14)', padding: 6, minWidth: 190,
+                          }}>
+                            <button
+                              onClick={() => { setShowEmoji(true); setAttachMenuOpen(false) }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 10px', border: 'none', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#0F172A', textAlign: 'left' }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#F1F5F9'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <span style={{ fontSize: 16, lineHeight: 1 }}>😊</span> Emoji
+                            </button>
+                            <QuickMessages
+                              variant="menurow"
+                              instancia={instance}
+                              onSelect={text => { setMsgText(prev => prev ? prev + ' ' + text : text); setAttachMenuOpen(false) }}
+                            />
+                            <button
+                              onClick={() => { fileInputRef.current?.click(); setAttachMenuOpen(false) }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 10px', border: 'none', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#0F172A', textAlign: 'left' }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#F1F5F9'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <Paperclip size={15} color="#6B7280" /> Arquivo
+                            </button>
+                            <button
+                              onClick={() => { setLocationModal({ input: '', name: '', address: '' }); setAttachMenuOpen(false) }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 10px', border: 'none', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#0F172A', textAlign: 'left' }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#F1F5F9'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <MapPin size={15} color="#6B7280" /> Localização
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
+                  <textarea
+                    ref={composerRef}
+                    rows={1}
+                    className="nx-input chat-composer-input"
+                    style={{ flex: 1, minWidth: 0, resize: 'none', minHeight: 38, maxHeight: 120, overflowY: 'auto', lineHeight: 1.4, fontFamily: 'inherit' }}
+                    placeholder={
+                      !canRespond(selected) ? "Conversa está com outro atendente — você não pode responder"
+                      : recordedAudio ? "Mensagem opcional para acompanhar o áudio..."
+                      : attachedFile ? "Mensagem opcional para acompanhar o arquivo..."
+                      : "Digite uma mensagem...  (Shift+Enter pula linha)"
+                    }
+                    value={msgText}
+                    onChange={e => setMsgText(e.target.value)}
+                    onPaste={handlePaste}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        handleSend()
+                      }
+                      if (e.key === 'Escape' && replyingTo) { setReplyingTo(null) }
+                    }}
+                    // NÃO desabilita durante o envio: a caixa continua focada e já dá
+                    // pra digitar a próxima (o texto é limpo no início do handleSend).
+                    disabled={recording || !canRespond(selected)}
+                  />
                   {/* Botão único que troca de lugar: microfone quando o campo tá
-                      vazio (ação padrão, igual WhatsApp), enviar assim que tiver
-                      texto/áudio/arquivo prontos — nunca os dois ao mesmo tempo. */}
+                      vazio (ação padrão, igual WhatsApp), some assim que começa a
+                      digitar e vira enviar — nunca os dois ao mesmo tempo. */}
                   {(msgText.trim() || recordedAudio || attachedFile || recording) ? (
                     <button
                       className="nx-btn-primary"

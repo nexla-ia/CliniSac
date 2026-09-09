@@ -193,7 +193,7 @@ export function TagPicker({ instancia, numero, userEmail, anchor = 'bottom-left'
     <div className="tagpicker">
       <button ref={btnRef} className="tagpicker-trigger" onClick={() => setOpen(v => !v)}>
         <TagIcon size={12} />
-        Etiquetas
+        <span className="tagpicker-label">Etiquetas</span>
         {mineIds.size > 0 && <span className="tagpicker-count">{mineIds.size}</span>}
       </button>
       {open && (
