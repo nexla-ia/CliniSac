@@ -453,27 +453,6 @@
   .alerts-root {
     padding: 1rem;
   }
-  /* Layout de Conversas em mobile: quando NADA selecionado, mostra só a lista;
-     quando seleciona um contato, lista some e chat ocupa a tela inteira */
-  .contacts-root {
-    flex-direction: column;
-    height: 100%;
-  }
-  .contacts-list {
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    flex: 1;
-    min-height: 0;
-  }
-  .contacts-root.has-selected .contacts-list { display: none; }
-  .contacts-root.has-selected .chat-panel { display: flex; }
-  .chat-panel { display: none; flex: 1; min-height: 0; }
-  .contacts-root:not(.has-selected) .chat-panel { display: none; }
-
-  /* Back button na chat-header */
-  .chat-back-mobile { display: inline-flex; }
-
   /* Chat-header em mobile: padding menor e gap reduzido */
   .chat-header {
     padding: 10px 12px;
@@ -522,6 +501,32 @@
   .plan-name-display {
     font-size: 32px !important;
   }
+}
+
+/* Lista+chat em 1 painel só: separado do breakpoint de 900px (hamburguer)
+   porque tablet (iPad portrait ~820px) já tem largura de sobra pros dois
+   painéis lado a lado — só precisa virar 1 painel em tela de celular de
+   verdade. Quando NADA selecionado, mostra só a lista; ao selecionar um
+   contato, lista some e chat ocupa a tela inteira. */
+@media (max-width: 680px) {
+  .contacts-root {
+    flex-direction: column;
+    height: 100%;
+  }
+  .contacts-list {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    flex: 1;
+    min-height: 0;
+  }
+  .contacts-root.has-selected .contacts-list { display: none; }
+  .contacts-root.has-selected .chat-panel { display: flex; }
+  .chat-panel { display: none; flex: 1; min-height: 0; }
+  .contacts-root:not(.has-selected) .chat-panel { display: none; }
+
+  /* Back button na chat-header */
+  .chat-back-mobile { display: inline-flex; }
 }
 
 @media (max-width: 540px) {
