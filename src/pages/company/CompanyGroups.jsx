@@ -2299,7 +2299,7 @@ export default function CompanyGroups() {
                   rows={1}
                   className="nx-input chat-composer-input"
                   style={{ flex: 1, minWidth: 0, resize: 'none', minHeight: 38, maxHeight: 120, overflowY: 'auto', lineHeight: 1.4, fontFamily: 'inherit' }}
-                  placeholder={attachedFile ? 'Mensagem opcional para acompanhar o arquivo…' : recordedAudio ? 'Mensagem opcional para acompanhar o áudio…' : 'Mensagem para o grupo…  (Shift+Enter pula linha)'}
+                  placeholder={attachedFile ? 'Mensagem opcional para acompanhar o arquivo…' : recordedAudio ? 'Mensagem opcional para acompanhar o áudio…' : 'Mensagem para o grupo…'}
                   value={msgText}
                   onChange={handleMsgChange}
                   onPaste={handlePaste}

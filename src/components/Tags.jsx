@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Tag as TagIcon, X, Plus, Check, Filter, Pencil } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import './Tags.css'
@@ -196,8 +197,27 @@ export function TagPicker({ instancia, numero, userEmail, anchor = 'bottom-left'
         <span className="tagpicker-label">Etiquetas</span>
         {mineIds.size > 0 && <span className="tagpicker-count">{mineIds.size}</span>}
       </button>
-      {open && (
-        <div ref={popRef} className={`tagpicker-pop tagpicker-pop-${anchor}`}>
+      {/* Portal pro <body>: se não fizer isso, o popover fica preso dentro de
+          qualquer ancestral com overflow (a tira de ações do header do chat,
+          por exemplo) e o overflow-x:auto ali corta o popover na vertical —
+          ele "abre" mas fica invisível. position:fixed escapa desse corte. */}
+      {open && createPortal(
+        <div
+          ref={popRef}
+          className="tagpicker-pop"
+          style={(() => {
+            const rect = btnRef.current?.getBoundingClientRect()
+            if (!rect) return { position: 'fixed', top: 0, left: 0, zIndex: 9999 }
+            return {
+              position: 'fixed',
+              top: rect.bottom + 6,
+              zIndex: 9999,
+              ...(anchor === 'bottom-right'
+                ? { right: window.innerWidth - rect.right }
+                : { left: rect.left }),
+            }
+          })()}
+        >
           <div className="tagpicker-header">Marcar etiquetas</div>
           {tags.length === 0 && !creating && (
             <div className="tagpicker-empty">
@@ -302,7 +322,8 @@ export function TagPicker({ instancia, numero, userEmail, anchor = 'bottom-left'
               Nova etiqueta
             </button>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

@@ -477,6 +477,8 @@ export default function CompanyConversations() {
   const [savingEdit, setSavingEdit]       = useState(false)
   const [showEmoji, setShowEmoji]         = useState(false)
   const emojiPickerRef                    = useRef(null)
+  const crmBtnRef                         = useRef(null) // botão CRM do header — posiciona o dropdown via portal
+  const moreBtnRef                        = useRef(null) // botão "Mais" do header — idem
   const [attachMenuOpen, setAttachMenuOpen] = useState(false) // "+" do composer: emoji, msg rápida, arquivo, local
   const [readsMap, setReadsMap]           = useState({}) // session_id → last_read_at ISO
   const [readsLoaded, setReadsLoaded]     = useState(false)
@@ -2778,6 +2780,7 @@ export default function CompanyConversations() {
                       return (
                         <div style={{ position: 'relative' }}>
                           <button
+                            ref={crmBtnRef}
                             className="nx-btn-ghost"
                             style={{
                               fontSize: 12, padding: '7px 10px', display: 'flex', alignItems: 'center', gap: 6,
@@ -2789,11 +2792,18 @@ export default function CompanyConversations() {
                           >
                             <Kanban size={15} />
                           </button>
-                          {crmMenuOpen && (
+                          {/* Portal: sem isso o dropdown fica preso dentro da tira de
+                              ações do header (overflow-x:auto corta na vertical). */}
+                          {crmMenuOpen && createPortal(
                             <>
-                              <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setCrmMenuOpen(false)} />
+                              <div style={{ position: 'fixed', inset: 0, zIndex: 99997 }} onClick={() => setCrmMenuOpen(false)} />
                               <div style={{
-                                position: 'absolute', top: '100%', right: 0, marginTop: 6, zIndex: 51,
+                                position: 'fixed', zIndex: 99998,
+                                ...(() => {
+                                  const rect = crmBtnRef.current?.getBoundingClientRect()
+                                  if (!rect) return { top: 0, right: 0 }
+                                  return { top: rect.bottom + 6, right: window.innerWidth - rect.right }
+                                })(),
                                 background: '#fff', border: '1px solid var(--border)', borderRadius: 10,
                                 boxShadow: '0 8px 28px rgba(0,0,0,0.14)', padding: 6, minWidth: 230,
                               }}>
@@ -2823,7 +2833,8 @@ export default function CompanyConversations() {
                                   <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--text-muted)' }}>Nenhuma etapa no CRM ainda.</div>
                                 )}
                               </div>
-                            </>
+                            </>,
+                            document.body
                           )}
                         </div>
                       )
@@ -2842,6 +2853,7 @@ export default function CompanyConversations() {
                     {/* ⋯ Mais — ações secundárias agrupadas pra não poluir o cabeçalho */}
                     <div style={{ position: 'relative' }}>
                       <button
+                        ref={moreBtnRef}
                         className="nx-btn-ghost"
                         style={{ fontSize: 12, padding: '7px 10px', display: 'flex', alignItems: 'center', color: moreMenuOpen ? '#2563EB' : 'var(--text-muted)', borderColor: moreMenuOpen ? '#BFDBFE' : undefined, background: moreMenuOpen ? '#EFF6FF' : undefined }}
                         onClick={() => setMoreMenuOpen(v => !v)}
@@ -2849,11 +2861,17 @@ export default function CompanyConversations() {
                       >
                         <MoreHorizontal size={16} />
                       </button>
-                      {moreMenuOpen && (
+                      {/* Portal: idem CRM — escapa do overflow-x:auto da tira de ações. */}
+                      {moreMenuOpen && createPortal(
                         <>
-                          <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setMoreMenuOpen(false)} />
+                          <div style={{ position: 'fixed', inset: 0, zIndex: 99997 }} onClick={() => setMoreMenuOpen(false)} />
                           <div style={{
-                            position: 'absolute', top: '100%', right: 0, marginTop: 6, zIndex: 51,
+                            position: 'fixed', zIndex: 99998,
+                            ...(() => {
+                              const rect = moreBtnRef.current?.getBoundingClientRect()
+                              if (!rect) return { top: 0, right: 0 }
+                              return { top: rect.bottom + 6, right: window.innerWidth - rect.right }
+                            })(),
                             background: '#fff', border: '1px solid var(--border)', borderRadius: 10,
                             boxShadow: '0 8px 28px rgba(0,0,0,0.14)', padding: 6, minWidth: 210,
                           }}>
@@ -2928,7 +2946,8 @@ export default function CompanyConversations() {
                               </button>
                             )}
                           </div>
-                        </>
+                        </>,
+                        document.body
                       )}
                     </div>
                   </>
@@ -3818,7 +3837,7 @@ export default function CompanyConversations() {
                       !canRespond(selected) ? "Conversa está com outro atendente — você não pode responder"
                       : recordedAudio ? "Mensagem opcional para acompanhar o áudio..."
                       : attachedFile ? "Mensagem opcional para acompanhar o arquivo..."
-                      : "Digite uma mensagem...  (Shift+Enter pula linha)"
+                      : "Digite uma mensagem..."
                     }
                     value={msgText}
                     onChange={e => setMsgText(e.target.value)}
