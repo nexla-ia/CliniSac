@@ -71,6 +71,102 @@ function fmtDateTime(ts) {
   return new Date(ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+const DOC_META = {
+  receituario: { titulo: 'Receituário' },
+  exames:      { titulo: 'Solicitação de exames' },
+  atestado:    { titulo: 'Atestado' },
+}
+
+// Escapa antes de ir pro HTML da janela de impressão (mesmo cuidado do
+// orçamento: dado do paciente pode ter vindo do WhatsApp).
+function escHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => (
+    { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]))
+}
+const nl2br = s => escHtml(s).replace(/\n/g, '<br>')
+
+// Gera o impresso em A4 numa janela nova e manda imprimir. O médico assina e
+// carimba no papel — por isso o rodapé deixa a linha de assinatura.
+function printDocument(doc, patient, clinicName) {
+  const titulo = doc.subtipo === 'declaracao' ? 'Declaração'
+    : (DOC_META[doc.tipo]?.titulo || 'Documento')
+  const idade = calcAge(patient?.birth_date)
+  const patLine = [
+    patient?.nome || patient?.numero || '—',
+    patient?.cpf ? `CPF ${fmtCpf(patient.cpf)}` : null,
+    idade != null ? `${idade} anos` : null,
+  ].filter(Boolean).map(escHtml).join(' &nbsp;·&nbsp; ')
+  const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+  const meds = Array.isArray(doc.dados?.medicamentos) ? doc.dados.medicamentos.filter(m => (m.nome || '').trim()) : []
+
+  let body = ''
+  if (doc.tipo === 'receituario') {
+    if (doc.dados?.controle_especial) {
+      body += `<div class="tag-especial">Receituário de controle especial</div>`
+    }
+    if (meds.length) {
+      body += `<ol class="meds">` + meds.map(m => `
+        <li><span class="med-nome">${escHtml(m.nome)}</span>${m.posologia ? `<div class="med-pos">${nl2br(m.posologia)}</div>` : ''}</li>
+      `).join('') + `</ol>`
+    }
+    if (doc.corpo) body += `<div class="corpo">${nl2br(doc.corpo)}</div>`
+  } else if (doc.tipo === 'exames') {
+    if (doc.dados?.indicacao) body += `<p class="linha"><strong>Indicação clínica:</strong> ${escHtml(doc.dados.indicacao)}</p>`
+    body += `<p class="linha">Solicito os exames abaixo:</p>`
+    body += `<div class="corpo">${nl2br(doc.corpo || '')}</div>`
+  } else {
+    body += `<div class="corpo corpo-atestado">${nl2br(doc.corpo || '')}</div>`
+  }
+
+  const w = window.open('', '_blank', 'width=760,height=920')
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${escHtml(titulo)}</title>
+    <style>
+      @page { size: A4; margin: 18mm 16mm; }
+      * { box-sizing: border-box; }
+      body { font-family: Georgia, 'Times New Roman', serif; font-size: 14px; color: #111; margin: 0; padding: 40px; line-height: 1.6; }
+      .head { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 2px solid #111; padding-bottom: 10px; gap: 16px; }
+      .clinic { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+      .doc-date { font-size: 12px; color: #555; white-space: nowrap; }
+      .patient { font-size: 12.5px; color: #333; margin: 14px 0 26px; }
+      h1 { font-size: 17px; text-transform: uppercase; letter-spacing: 0.06em; text-align: center; margin: 0 0 22px; }
+      .tag-especial { display: inline-block; border: 1px solid #b45309; color: #b45309; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 3px 9px; border-radius: 4px; margin-bottom: 16px; font-family: Arial, sans-serif; }
+      ol.meds { margin: 0 0 18px; padding-left: 22px; }
+      ol.meds li { margin-bottom: 14px; }
+      .med-nome { font-weight: 700; }
+      .med-pos { font-size: 13px; color: #444; margin-top: 2px; }
+      .linha { margin: 0 0 12px; }
+      .corpo { white-space: normal; min-height: 60px; }
+      .corpo-atestado { margin-top: 10px; text-align: justify; }
+      .sign { margin-top: 90px; text-align: center; }
+      .sign .line { width: 320px; margin: 0 auto; border-top: 1px solid #111; padding-top: 6px; }
+      .sign .nome { font-weight: 700; }
+      .sign .reg { font-size: 12px; color: #444; }
+      .sign .carimbo { font-size: 11px; color: #888; font-family: Arial, sans-serif; margin-top: 3px; }
+      .local-data { text-align: center; font-size: 12.5px; color: #333; margin-top: 40px; }
+      .foot { margin-top: 34px; font-size: 10px; color: #aaa; text-align: center; font-family: Arial, sans-serif; }
+      @media print { .noprint { display: none; } }
+    </style></head><body>
+    <div class="head">
+      <span class="clinic">${escHtml(clinicName)}</span>
+      <span class="doc-date">${hoje}</span>
+    </div>
+    <div class="patient"><strong>Paciente:</strong> ${patLine}</div>
+    <h1>${escHtml(titulo)}</h1>
+    ${body}
+    <div class="local-data">${hoje}</div>
+    <div class="sign">
+      <div class="line">
+        <div class="nome">${escHtml(doc.professional_nome || '')}</div>
+        ${doc.professional_registro ? `<div class="reg">${escHtml(doc.professional_registro)}${doc.professional_especialidade ? ' · ' + escHtml(doc.professional_especialidade) : ''}</div>` : (doc.professional_especialidade ? `<div class="reg">${escHtml(doc.professional_especialidade)}</div>` : '')}
+        <div class="carimbo">Assinatura e carimbo</div>
+      </div>
+    </div>
+    <div class="foot">Emitido pelo CliniSac em ${new Date().toLocaleString('pt-BR')}${doc.created_by ? ' · ' + escHtml(doc.created_by) : ''}</div>
+    <script>window.onload = () => { window.print() }</script>
+    </body></html>`)
+  w.document.close()
+}
+
 export default function CompanyPatientDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -100,6 +196,8 @@ export default function CompanyPatientDetail() {
   const [anamneseTemplates, setAnamneseTemplates] = useState([])
   const [anamneseModal, setAnamneseModal] = useState(null)
   const [orcamentoModal, setOrcamentoModal] = useState(null)
+  const [documents, setDocuments] = useState([])
+  const [docModal, setDocModal] = useState(null)
 
   useEffect(() => {
     if (!id) return
@@ -138,6 +236,11 @@ export default function CompanyPatientDetail() {
         .eq('instancia', instance).eq('contact_id', id)
         .order('created_at', { ascending: false })
         .then(({ data: o }) => { if (o) setOrcamentos(o) })
+      supabase.from('patient_documents')
+        .select('*')
+        .eq('instancia', instance).eq('contact_id', id)
+        .order('created_at', { ascending: false })
+        .then(({ data: d }) => { if (d) setDocuments(d) })
       }
       if (plans) setInsurancePlans(plans)
       setLoading(false)
@@ -151,7 +254,7 @@ export default function CompanyPatientDetail() {
       .eq('instancia', instance).order('name')
       .then(({ data: pr }) => { if (pr) setProcedures(pr) })
     supabase.from('professionals')
-      .select('id, name')
+      .select('id, name, specialty, registration')
       .eq('instancia', instance)
       .then(({ data: pros }) => { if (pros) setProfessionals(pros) })
   }, [id, instance])
@@ -271,6 +374,40 @@ export default function CompanyPatientDetail() {
     setOrcamentos(prev => [saved, ...prev])
     setOrcamentoModal(null)
     return saved
+  }
+
+  async function handleSaveDocument(form) {
+    const numDigits = (patient.numero || '').replace(/@.*$/, '').replace(/\D/g, '')
+    const pro = professionals.find(p => p.id === form.professional_id)
+    const { data, error } = await supabase.from('patient_documents').insert({
+      instancia: instance,
+      contact_id: id,
+      contact_numero: numDigits,
+      tipo: form.tipo,
+      subtipo: form.subtipo || null,
+      titulo: form.titulo || null,
+      corpo: form.corpo?.trim() || null,
+      dados: form.dados || {},
+      professional_id: pro?.id || null,
+      professional_nome: pro?.name || null,
+      professional_registro: pro?.registration || null,
+      professional_especialidade: pro?.specialty || null,
+      created_by: session?.user?.name || session?.user?.email || null,
+    }).select().single()
+    if (error || !data) {
+      alert('Erro ao salvar o impresso: ' + (error?.message || 'tente novamente'))
+      return false
+    }
+    setDocuments(prev => [data, ...prev])
+    setDocModal(null)
+    printDocument(data, patient, session?.company?.name || instance)
+    return data
+  }
+
+  async function handleDeleteDocument(doc) {
+    if (!window.confirm('Excluir este impresso do histórico? Essa ação não pode ser desfeita.')) return
+    await supabase.from('patient_documents').delete().eq('id', doc.id)
+    setDocuments(prev => prev.filter(d => d.id !== doc.id))
   }
 
   function printOrcamento(orc, pat) {
@@ -604,6 +741,7 @@ export default function CompanyPatientDetail() {
           })` },
           { key: 'anamneses',   label: `Anamneses (${anamneses.length})` },
           { key: 'orcamentos',  label: `Orçamentos (${orcamentos.length})` },
+          { key: 'impressos',   label: `Impressos (${documents.length})` },
           { key: 'historico',   label: `Histórico (${appointments.length})` },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} className={`pat-tab ${tab === t.key ? 'active' : ''}`}>
@@ -1104,6 +1242,69 @@ export default function CompanyPatientDetail() {
       {/* Lightbox */}
       {lightbox && <ImageLightbox src={lightbox} alt="mídia" onClose={() => setLightbox(null)} />}
 
+      {tab === 'impressos' && (
+        <div className="pat-resumo">
+          <div style={{ display:'flex', flexWrap:'wrap', gap:8, justifyContent:'flex-end', marginBottom:12 }}>
+            {[
+              ['receituario', 'Receituário'],
+              ['exames', 'Solicitação de exames'],
+              ['atestado', 'Atestado / Declaração'],
+            ].map(([tipo, label]) => (
+              <button key={tipo}
+                onClick={() => setDocModal({ tipo, professional_id: professionals[0]?.id || '' })}
+                style={{ display:'inline-flex', alignItems:'center', gap:6, background:'#2563EB', color:'#fff', border:'none', borderRadius:8, padding:'9px 14px', fontSize:12.5, fontWeight:700, cursor:'pointer' }}>
+                <Plus size={13} /> {label}
+              </button>
+            ))}
+          </div>
+          {documents.length === 0 ? (
+            <div className="pat-empty-card">
+              <FileText size={28} style={{ opacity:0.2 }} />
+              <span>Nenhum impresso emitido ainda. Crie um receituário, uma solicitação de exames ou um atestado para imprimir e carimbar.</span>
+            </div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              {documents.map(doc => {
+                const meta = {
+                  receituario: { label: 'Receituário', color:'#2563EB', bg:'#EFF6FF' },
+                  exames:      { label: 'Solicitação de exames', color:'#0891B2', bg:'#ECFEFF' },
+                  atestado:    { label: doc.subtipo === 'declaracao' ? 'Declaração' : 'Atestado', color:'#7C3AED', bg:'#F5F3FF' },
+                }[doc.tipo] || { label: doc.tipo, color:'#6B7280', bg:'#F9FAFB' }
+                const nMeds = Array.isArray(doc.dados?.medicamentos) ? doc.dados.medicamentos.filter(m => (m.nome||'').trim()).length : 0
+                const resumo = doc.tipo === 'receituario'
+                  ? (nMeds ? `${nMeds} medicamento${nMeds > 1 ? 's' : ''}` : 'Texto livre') + (doc.dados?.controle_especial ? ' · controle especial' : '')
+                  : (doc.corpo || '').slice(0, 90) || '—'
+                return (
+                  <div key={doc.id} className="pat-section-card">
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:8 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
+                        <span style={{ fontSize:10, padding:'3px 10px', borderRadius:999, fontWeight:700, background:meta.bg, color:meta.color, whiteSpace:'nowrap' }}>{meta.label}</span>
+                        <div style={{ minWidth:0 }}>
+                          <div style={{ fontSize:13, color:'var(--text-primary)', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{resumo}</div>
+                          <div style={{ fontSize:11.5, color:'var(--text-muted)' }}>
+                            {doc.professional_nome ? `${doc.professional_nome} · ` : ''}{fmtDateTime(doc.created_at)}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+                        <button onClick={() => printDocument(doc, patient, session?.company?.name || instance)}
+                          style={{ fontSize:11, padding:'5px 11px', background:'#F1F5F9', color:'#475569', border:'1px solid #E2E8F0', borderRadius:6, cursor:'pointer', fontWeight:600, display:'flex', alignItems:'center', gap:4 }}>
+                          🖨️ Imprimir
+                        </button>
+                        <button onClick={() => handleDeleteDocument(doc)}
+                          style={{ background:'transparent', border:'1px solid #FCA5A5', borderRadius:6, padding:'5px 7px', cursor:'pointer', color:'#DC2626', display:'flex', alignItems:'center' }}>
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {tab === 'historico' && (
         <div className="pat-timeline">
           {appointments.length === 0 ? (
@@ -1178,6 +1379,16 @@ export default function CompanyPatientDetail() {
           setForm={setOrcamentoModal}
           onSave={handleSaveOrcamento}
           procedures={procedures}
+          patientName={patient?.nome || patient?.numero || ''}
+        />
+      )}
+
+      {docModal && (
+        <DocumentModal
+          initial={docModal}
+          onClose={() => setDocModal(null)}
+          onSave={handleSaveDocument}
+          professionals={professionals}
           patientName={patient?.nome || patient?.numero || ''}
         />
       )}
@@ -1902,6 +2113,159 @@ function PatientTagsRow({ instancia, numero, userEmail }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', margin: '10px 0 4px' }}>
       {myTags.length > 0 && <TagList tags={myTags} size="sm" />}
       <TagPicker instancia={instancia} numero={numero} userEmail={userEmail} anchor="bottom-left" />
+    </div>
+  )
+}
+
+// ── Modal de impressos (receituário / exames / atestado) ─────────────────────
+function DocumentModal({ initial, onClose, onSave, professionals = [], patientName = '' }) {
+  const tipo = initial.tipo
+  const [saving, setSaving] = useState(false)
+  const [professionalId, setProfessionalId] = useState(initial.professional_id || '')
+  const [meds, setMeds] = useState([{ nome: '', posologia: '' }])
+  const [controleEspecial, setControleEspecial] = useState(false)
+  const [obs, setObs] = useState('')
+  const [indicacao, setIndicacao] = useState('')
+  const [examesTexto, setExamesTexto] = useState('')
+  const [subtipo, setSubtipo] = useState('atestado')
+  const [atestadoTexto, setAtestadoTexto] = useState('')
+
+  const titulo = tipo === 'receituario' ? 'Novo receituário'
+    : tipo === 'exames' ? 'Nova solicitação de exames'
+    : 'Novo atestado / declaração'
+
+  const OVERLAY = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }
+  const BOX = { background: 'var(--bg-card, #fff)', borderRadius: 12, width: '100%', maxWidth: 640, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }
+  const INPUT = { width: '100%', padding: '9px 11px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: 'var(--text-primary)', background: 'var(--bg-card,#fff)' }
+  const LABEL = { fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'block', marginBottom: 5 }
+
+  function build() {
+    if (tipo === 'receituario') {
+      const clean = meds.filter(m => m.nome.trim())
+      return {
+        tipo, corpo: obs, professional_id: professionalId,
+        dados: { medicamentos: clean.map(m => ({ nome: m.nome.trim(), posologia: m.posologia.trim() })), controle_especial: controleEspecial },
+      }
+    }
+    if (tipo === 'exames') {
+      return { tipo, corpo: examesTexto, professional_id: professionalId, dados: { indicacao: indicacao.trim() } }
+    }
+    return { tipo, subtipo, corpo: atestadoTexto, professional_id: professionalId, dados: {} }
+  }
+
+  const valid = tipo === 'receituario'
+    ? (meds.some(m => m.nome.trim()) || obs.trim())
+    : tipo === 'exames' ? examesTexto.trim() : atestadoTexto.trim()
+
+  async function handleSave() {
+    if (!valid || saving) return
+    setSaving(true)
+    try { await onSave(build()) } finally { setSaving(false) }
+  }
+
+  return (
+    <div style={OVERLAY} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={BOX}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{titulo}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{patientName}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={18} /></button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <label style={LABEL}>Profissional (assina e carimba)</label>
+            <select style={INPUT} value={professionalId} onChange={e => setProfessionalId(e.target.value)}>
+              <option value="">— selecionar —</option>
+              {professionals.map(p => (
+                <option key={p.id} value={p.id}>{p.name}{p.specialty ? ` · ${p.specialty}` : ''}</option>
+              ))}
+            </select>
+          </div>
+
+          {tipo === 'receituario' && (
+            <>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={controleEspecial} onChange={e => setControleEspecial(e.target.checked)} />
+                Receituário de controle especial
+              </label>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={LABEL}>Medicamentos</span>
+                  <button type="button" onClick={() => setMeds(m => [...m, { nome: '', posologia: '' }])}
+                    style={{ fontSize: 11.5, fontWeight: 600, color: '#2563EB', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <Plus size={12} /> Adicionar
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {meds.map((m, i) => (
+                    <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }}>
+                      <input style={INPUT} placeholder="Medicamento e concentração (ex.: Amoxicilina 500mg)"
+                        value={m.nome} onChange={e => setMeds(list => list.map((it, idx) => idx === i ? { ...it, nome: e.target.value } : it))} />
+                      <textarea style={{ ...INPUT, minHeight: 44, resize: 'vertical' }} placeholder="Posologia (ex.: 1 comprimido de 8/8h por 7 dias)"
+                        value={m.posologia} onChange={e => setMeds(list => list.map((it, idx) => idx === i ? { ...it, posologia: e.target.value } : it))} />
+                      {meds.length > 1 && (
+                        <button type="button" onClick={() => setMeds(list => list.filter((_, idx) => idx !== i))}
+                          style={{ position: 'absolute', top: 8, right: 8, background: 'transparent', border: 'none', cursor: 'pointer', color: '#DC2626' }}><Trash2 size={13} /></button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={LABEL}>Observações (opcional)</label>
+                <textarea style={{ ...INPUT, minHeight: 60, resize: 'vertical' }} value={obs} onChange={e => setObs(e.target.value)} placeholder="Orientações adicionais, texto livre..." />
+              </div>
+            </>
+          )}
+
+          {tipo === 'exames' && (
+            <>
+              <div>
+                <label style={LABEL}>Indicação clínica (opcional)</label>
+                <input style={INPUT} value={indicacao} onChange={e => setIndicacao(e.target.value)} placeholder="Ex.: investigação de dor abdominal" />
+              </div>
+              <div>
+                <label style={LABEL}>Exames solicitados</label>
+                <textarea style={{ ...INPUT, minHeight: 130, resize: 'vertical' }} value={examesTexto} onChange={e => setExamesTexto(e.target.value)} placeholder={'Um exame por linha, ex.:\nHemograma completo\nGlicemia de jejum\nTSH'} />
+              </div>
+            </>
+          )}
+
+          {tipo === 'atestado' && (
+            <>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[['atestado', 'Atestado'], ['declaracao', 'Declaração']].map(([v, l]) => (
+                  <button key={v} type="button" onClick={() => setSubtipo(v)}
+                    style={{ flex: 1, padding: '9px 0', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                      border: `1px solid ${subtipo === v ? '#2563EB' : 'var(--border)'}`,
+                      background: subtipo === v ? '#EFF6FF' : 'var(--bg-card,#fff)',
+                      color: subtipo === v ? '#2563EB' : 'var(--text-secondary)' }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              <div>
+                <label style={LABEL}>Texto do {subtipo === 'declaracao' ? 'documento' : 'atestado'}</label>
+                <textarea style={{ ...INPUT, minHeight: 160, resize: 'vertical' }} value={atestadoTexto} onChange={e => setAtestadoTexto(e.target.value)}
+                  placeholder={subtipo === 'declaracao'
+                    ? 'Ex.: Declaro para os devidos fins que o(a) paciente compareceu a esta clínica no dia ...'
+                    : 'Ex.: Atesto para os devidos fins que o(a) paciente necessita de ... dia(s) de afastamento a partir de ...'} />
+              </div>
+            </>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '14px 20px', borderTop: '1px solid var(--border)' }}>
+          <button onClick={onClose} style={{ padding: '9px 16px', border: '1px solid var(--border)', background: 'transparent', borderRadius: 8, fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={handleSave} disabled={!valid || saving}
+            style={{ padding: '9px 18px', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, color: '#fff', background: valid ? '#2563EB' : '#93C5FD', cursor: valid ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            🖨️ Salvar e imprimir
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
