@@ -656,7 +656,10 @@ export default function CompanyGroups() {
             return [updated, ...prev]
           })
           if (selectedRef.current?.idgrupo === row.idgrupo) {
-            setMessages(msgs => [...msgs, row])
+            setMessages(msgs => {
+              if (msgs.some(m => m.id === row.id)) return msgs
+              return [...msgs, row]
+            })
             // O realtime corta payloads grandes (~1 MB): vídeo/PDF chega sem o
             // base64 e a bolha vira só texto até dar F5. Se a mensagem anuncia
             // mídia mas o base64 não veio, busca a linha completa.
