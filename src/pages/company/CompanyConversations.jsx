@@ -3558,6 +3558,16 @@ export default function CompanyConversations() {
                                 <AlertCircle size={11} /> Mídia não pôde ser carregada
                               </div>
                             ) : null}
+                            {/* Mesmo problema acima, mas pra quando TEM a legenda tipo "📄 nome.pdf"
+                                (isPlaceholder=true) e mesmo assim a mídia não decodificou — esse é o
+                                caso real do PDF que não aparece: o branch acima não cobria porque
+                                exige !fileLine, e aqui fileLine existe. Fica como aviso à parte,
+                                independente do texto, igual os avisos de apagada/não entregue abaixo. */}
+                            {!media && fileLine && cards.length === 0 && !loc && !poll && !msg.apagada && (
+                              <div style={{ fontSize: 11.5, fontWeight: 600, marginTop: displayContent ? 6 : 0, display: 'flex', alignItems: 'center', gap: 4, color: isAtendente ? 'rgba(255,255,255,0.85)' : '#DC2626' }}>
+                                <AlertCircle size={11} /> {fileLine} — não pôde ser carregado
+                              </div>
+                            )}
                             {msg.apagada && (
                               <div style={{ fontSize: 10.5, fontStyle: 'italic', opacity: 0.7, marginTop: displayContent ? 4 : 0, display: 'flex', alignItems: 'center', gap: 4 }}>
                                 <Trash2 size={10} /> {isCliente ? 'mensagem apagada pelo cliente' : 'mensagem apagada'}
