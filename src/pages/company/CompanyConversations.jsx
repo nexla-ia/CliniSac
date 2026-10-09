@@ -3548,6 +3548,15 @@ export default function CompanyConversations() {
                                   wordBreak: 'break-all',
                                 })}
                               </span>
+                            ) : (!media && !fileLine && cards.length === 0 && !loc && !poll && !msg.apagada) ? (
+                              // Mensagem sem texto, sem mídia reconhecida e sem nenhum outro tipo de
+                              // conteúdo — a bolha ficava um retângulo colorido vazio, sem explicação
+                              // (isso é o que o usuário via como "não salvou"/"não aparece"). Na
+                              // prática é falha no download/anexo da mídia lá na origem (Evolution/n8n),
+                              // não dá pra recuperar o conteúdo aqui — só deixa o problema visível.
+                              <div style={{ fontSize: 11.5, fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4, color: isAtendente ? 'rgba(255,255,255,0.85)' : '#DC2626' }}>
+                                <AlertCircle size={11} /> Mídia não pôde ser carregada
+                              </div>
                             ) : null}
                             {msg.apagada && (
                               <div style={{ fontSize: 10.5, fontStyle: 'italic', opacity: 0.7, marginTop: displayContent ? 4 : 0, display: 'flex', alignItems: 'center', gap: 4 }}>
