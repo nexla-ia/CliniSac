@@ -203,7 +203,7 @@ export default function CompanyPatientDetail() {
     if (!id) return
     setLoading(true)
     Promise.all([
-      supabase.from('saved_contacts').select('*').eq('id', id).single(),
+      supabase.from('saved_contacts').select('*').eq('id', id).eq('instancia', instance).single(),
       supabase.from('insurance_plans').select('id, name').eq('instancia', instance),
     ]).then(([{ data: p }, { data: plans }]) => {
       if (p) {
