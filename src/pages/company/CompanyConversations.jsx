@@ -16,6 +16,24 @@ import './Company.css'
 
 const CONV_TABLE = 'mensagens_geral'
 
+// Busca TODAS as linhas de uma tabela por instância, paginando. O Supabase corta
+// em 1000 linhas por padrão — clínicas grandes passam disso (ex.: conversas
+// finalizadas). Sem paginar, a finalizada recente ficava fora da janela e a
+// conversa "voltava pra recepção" (parecia não-finalizada).
+async function fetchAllByInstance(table, columns, orderCol, inst) {
+  const all = []
+  const PAGE = 1000
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase.from(table).select(columns)
+      .eq('instancia', inst).order(orderCol, { ascending: true })
+      .range(from, from + PAGE - 1)
+    if (error || !data || data.length === 0) break
+    all.push(...data)
+    if (data.length < PAGE) break
+  }
+  return all
+}
+
 function formatPhone(val) {
   return (val || '').replace(/@.*$/, '')
 }
@@ -48,11 +66,13 @@ function parseVCard(vcard) {
   const lines = String(vcard || '').split(/\r?\n/)
   let name = '', phone = '', digits = ''
   for (const l of lines) {
-    if (/^FN:/i.test(l)) name = l.slice(3).trim()
-    else if (/^TEL/i.test(l)) {
+    // Aceita FN/TEL com prefixo "itemN." (ex.: iPhone manda "item1.TEL;waid=...:+55...").
+    // O regex antigo /^TEL/ não casava nesses → o número não vinha ("sem número").
+    if (/(?:^|\.)FN:/i.test(l)) name = l.replace(/^.*?FN:/i, '').trim()
+    else if (/(?:^|\.)TEL/i.test(l)) {
       const w = l.match(/waid=(\d+)/i)
       if (w && !digits) digits = w[1]
-      const val = l.split(':').slice(1).join(':').trim()  // valor depois do 1º ":"
+      const val = l.split(':').slice(1).join(':').trim().replace(/^tel:/i, '')  // valor depois do 1º ":"
       if (val && !phone) phone = val
     }
   }
@@ -492,6 +512,22 @@ export default function CompanyConversations() {
   const bottomRef    = useRef(null)
   const chatBodyRef  = useRef(null)
   const skipScrollRef = useRef(false)
+  const atBottomRef = useRef(true)        // usuário está no fim do chat?
+  const initialScrollRef = useRef(false)  // já deu o pulo inicial pro fim nesta conversa?
+  const prevCountRef = useRef(0)          // qtd de mensagens no render anterior
+  function scrollToBottom(behavior = 'auto') {
+    if (behavior === 'smooth') { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); return }
+    const el = chatBodyRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }
+  function handleChatScroll() {
+    const el = chatBodyRef.current
+    if (el) atBottomRef.current = (el.scrollHeight - el.scrollTop - el.clientHeight) < 120
+  }
+  // Mídia lazy que cresceu ao carregar: mantém colado no fim só se o usuário já estava lá.
+  function stickIfAtBottom() {
+    if (atBottomRef.current) scrollToBottom('auto')
+  }
 
   // Auto-cresce o composer conforme digita (até ~5 linhas), tipo WhatsApp
   useEffect(() => {
@@ -669,8 +705,8 @@ export default function CompanyConversations() {
     if (existing) {
       setSelected(existing)
       // Se está finalizada, força aba certa para visualizar
-      if (closedMap[existing.session_id]) setTab('finalizados')
-      else if (attendancesMap[existing.session_id]) setTab('meu-setor')
+      if (closedMap[canonSession(existing.session_id)]) setTab('finalizados')
+      else if (attendancesMap[canonSession(existing.session_id)]) setTab('meu-setor')
       else setTab('recepcao')
     } else {
       const synthetic = { session_id: sessionId, phone: cleanTarget, lastTs: null }
@@ -746,6 +782,18 @@ export default function CompanyConversations() {
     })()
     return () => { cancelled = true }
   }, [instance])
+
+  // Re-busca as etapas do funil sempre que o menu do CRM abre, pra pegar etapa
+  // criada DEPOIS que a aba carregou (senão o seletor fica com a carga velha e
+  // só recarregando a página mostra a etapa nova).
+  useEffect(() => {
+    if (!(crmSubOpen || crmMenuOpen) || !instance || !crmFunnelId) return
+    let cancel = false
+    supabase.from('crm_stages')
+      .select('id,nome,cor,posicao').eq('instancia', instance).eq('funil_id', crmFunnelId).order('posicao')
+      .then(({ data }) => { if (!cancel && data) setCrmStages(data) })
+    return () => { cancel = true }
+  }, [crmSubOpen, crmMenuOpen, instance, crmFunnelId])
 
   // Fecha o menu do CRM ao trocar de conversa
   useEffect(() => { setCrmMenuOpen(false); setMoreMenuOpen(false); setCrmSubOpen(false) }, [selected?.session_id])
@@ -849,20 +897,18 @@ export default function CompanyConversations() {
   // ela não pode mais ler — sem precisar recarregar a página.
   useEffect(() => {
     if (!selected) return
-    if (!attVisible(attendancesMap[selected.session_id])) setSelected(null)
+    if (!attVisible(attendancesMap[canonSession(selected.session_id)])) setSelected(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.session_id, attendancesMap, userSector?.id, isAdmin, companyHasSectors])
 
   // Carrega atendimentos ativos (quem está em qual setor + atendente)
   useEffect(() => {
     if (!instance) return
-    supabase.from('attendances').select('*').eq('instancia', instance)
-      .then(({ data }) => {
-        if (data) {
-          const map = {}
-          data.forEach(r => { map[canonSession(r.numero)] = r })
-          setAttendancesMap(map)
-        }
+    fetchAllByInstance('attendances', '*', 'numero', instance)
+      .then((data) => {
+        const map = {}
+        data.forEach(r => { map[canonSession(r.numero)] = r })
+        setAttendancesMap(map)
         setAttendancesLoaded(true)
       })
   }, [instance])
@@ -1054,15 +1100,42 @@ export default function CompanyConversations() {
   // Carrega sessões encerradas com motivo
   useEffect(() => {
     if (!instance) return
-    supabase.from('conversations').select('session_id, reason').eq('instancia', instance)
-      .then(({ data }) => {
-        if (data) {
+    fetchAllByInstance('conversations', 'session_id, reason', 'session_id', instance)
+      .then((data) => {
+        const map = {}
+        data.forEach(r => { map[canonSession(r.session_id)] = r.reason || 'resolvido' })
+        setClosedMap(map)
+        setClosedLoaded(true)
+      })
+  }, [instance])
+
+  // Re-sincroniza finalizadas + atendimentos quando a aba volta ao foco. O realtime
+  // só escuta INSERT e pode perder eventos (aba em segundo plano, reconexão), então
+  // uma conversa podia aparecer ABERTA mesmo já finalizada no banco ("reabre sozinho")
+  // — ou o contrário. Recarregar do banco ao focar reflete o estado real nos dois sentidos.
+  useEffect(() => {
+    if (!instance) return
+    const resync = () => {
+      if (document.visibilityState !== 'visible') return
+      fetchAllByInstance('conversations', 'session_id, reason', 'session_id', instance)
+        .then((data) => {
           const map = {}
           data.forEach(r => { map[canonSession(r.session_id)] = r.reason || 'resolvido' })
           setClosedMap(map)
-        }
-        setClosedLoaded(true)
-      })
+        })
+      fetchAllByInstance('attendances', '*', 'numero', instance)
+        .then((data) => {
+          const map = {}
+          data.forEach(r => { map[canonSession(r.numero)] = r })
+          setAttendancesMap(map)
+        })
+    }
+    document.addEventListener('visibilitychange', resync)
+    window.addEventListener('focus', resync)
+    return () => {
+      document.removeEventListener('visibilitychange', resync)
+      window.removeEventListener('focus', resync)
+    }
   }, [instance])
 
   // Auto-encerra tickets sem atividade após AUTO_CLOSE_HOURS horas.
@@ -1074,11 +1147,12 @@ export default function CompanyConversations() {
 
     const cutoff = Date.now() - AUTO_CLOSE_HOURS * 3600_000
     const toClose = contacts.filter(c =>
-      !closedMap[c.session_id] &&
-      !attendancesMap[c.session_id] &&   // já assumida por alguém → NÃO encerra
+      !closedMap[canonSession(c.session_id)] &&
+      !attendancesMap[canonSession(c.session_id)] &&   // já assumida por alguém → NÃO encerra
       c.lastTs &&
-      new Date(c.lastTs).getTime() < cutoff &&
-      !isWaitingPatient(c)   // esperando o paciente → não encerra
+      new Date(c.lastTs).getTime() < cutoff
+      // "Esperando o cliente responder" também encerra 2h após a última mensagem
+      // (a tag continua aparecendo; só volta a fechar automático).
     )
     if (!toClose.length) return
 
@@ -1242,12 +1316,15 @@ export default function CompanyConversations() {
   const MSG_PAGE = 50
 
   // Ao trocar de conversa, cancela qualquer resposta/edição/busca em andamento
+  // e LIMPA o campo de digitar (o rascunho é estado único — sem isso o mesmo
+  // texto/anexo "vazava" pra todas as conversas).
   useEffect(() => {
     setReplyingTo(null)
     setEditingMsgId(null)
     setSearchOpen(false)
     setSearchTerm('')
     setSearchResults([])
+    setMsgText(''); setAttachedFile(null); setRecordedAudio(null); setRecordTime(0)
   }, [selected?.session_id])
 
   // Carrega mensagens da conversa selecionada (apenas as 50 mais recentes)
@@ -1259,6 +1336,9 @@ export default function CompanyConversations() {
     setLoadingMsgs(true)
     setMessages([])
     setHasMoreMsgs(false)
+    initialScrollRef.current = false   // nova conversa: o próximo render pula pro fim
+    atBottomRef.current = true
+    prevCountRef.current = 0
     supabase.from(CONV_TABLE).select('*')
       .eq('instancia', instance)
       .in('numero', numeroVariants(selected.session_id))
@@ -1397,8 +1477,17 @@ export default function CompanyConversations() {
   }
 
   useEffect(() => {
-    if (skipScrollRef.current) { skipScrollRef.current = false; return }
-    if (!loadingMsgs) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (loadingMsgs) return
+    if (skipScrollRef.current) { skipScrollRef.current = false; prevCountRef.current = messages.length; return }
+    if (!initialScrollRef.current) {
+      // Abertura da conversa: pula direto pro fim, SEM animação.
+      scrollToBottom('auto')
+      initialScrollRef.current = true
+      atBottomRef.current = true
+    } else if (messages.length > prevCountRef.current) {
+      if (atBottomRef.current) scrollToBottom('smooth')
+    }
+    prevCountRef.current = messages.length
   }, [messages, loadingMsgs])
 
   // Scroll para o fim ao abrir edição (evita textarea ficar atrás do compositor)
@@ -1471,7 +1560,7 @@ export default function CompanyConversations() {
 
   async function handleAssume(contact, e) {
     e?.stopPropagation()
-    if (attendancesMap[contact.session_id] || assuming === contact.session_id) return
+    if (attendancesMap[canonSession(contact.session_id)] || assuming === contact.session_id) return
     setAssuming(contact.session_id)
     const name = session?.user?.name || 'Atendente'
     const sectorLabel = userSector ? ` (${userSector.name})` : ''
@@ -1560,7 +1649,7 @@ export default function CompanyConversations() {
   }
 
   async function handlePullConversation(contact) {
-    const att = attendancesMap[contact.session_id]
+    const att = attendancesMap[canonSession(contact.session_id)]
     if (!att) return
     const meName = session?.user?.name || 'Atendente'
     const meEmail = session?.user?.email
@@ -1885,8 +1974,8 @@ export default function CompanyConversations() {
   // Regra: dono da conversa OU admin OU conversa ainda sem atendimento.
   function canRespond(contact) {
     if (!contact) return false
-    if (closedMap[contact.session_id]) return false
-    const att = attendancesMap[contact.session_id]
+    if (closedMap[canonSession(contact.session_id)]) return false
+    const att = attendancesMap[canonSession(contact.session_id)]
     if (!att) return true
     if (isAdmin) return true
     return att.attendant_email === session?.user?.email
@@ -1895,7 +1984,7 @@ export default function CompanyConversations() {
   async function handleSend() {
     if (sending || !selected) return
     if (!canRespond(selected)) {
-      const att = attendancesMap[selected.session_id]
+      const att = attendancesMap[canonSession(selected.session_id)]
       setToast({
         message: `Conversa em atendimento por ${att?.attendant_name || 'outro atendente'}. Peça pra ele transferir ou finalize antes.`,
         color: '#DC2626',
@@ -2028,6 +2117,10 @@ export default function CompanyConversations() {
             headers: { 'Content-Type': 'application/json' },
             signal: ctrl.signal,
             body: buildBody(sidJid),
+            // Texto (sem mídia): o envio sobrevive se a aba for fechada/trocada no
+            // meio — o navegador termina o POST em segundo plano. keepalive tem
+            // teto de 64KB, então NÃO usa quando tem base64 (áudio/imagem/vídeo).
+            keepalive: !mediaBase64,
           })
           const text = await r.text().catch(() => '')
           // Ruído de infra do n8n (ex.: lock do SQLite no "Respond to Webhook")
@@ -2414,10 +2507,14 @@ export default function CompanyConversations() {
   }
 
   const closed = new Set(Object.keys(closedMap))
-  const recepcao    = contacts.filter(c => !closed.has(c.session_id) && !attendancesMap[c.session_id])
-  const meuSetor    = contacts.filter(c => !closed.has(c.session_id) && attendancesMap[c.session_id] &&
-    attVisible(attendancesMap[c.session_id]))
-  const finalizados = contacts.filter(c => closed.has(c.session_id))
+  // closedMap/attendancesMap são indexados por canonSession — SEMPRE consultar
+  // pela forma canônica (com/sem o 9, com/sem @s.whatsapp.net batem no mesmo).
+  // Sem isso, uma conversa finalizada com forma de número diferente da lista
+  // caía na Recepção como se tivesse "reaberto sozinha".
+  const recepcao    = contacts.filter(c => !closed.has(canonSession(c.session_id)) && !attendancesMap[canonSession(c.session_id)])
+  const meuSetor    = contacts.filter(c => !closed.has(canonSession(c.session_id)) && attendancesMap[canonSession(c.session_id)] &&
+    attVisible(attendancesMap[canonSession(c.session_id)]))
+  const finalizados = contacts.filter(c => closed.has(canonSession(c.session_id)))
 
   const tabList = [
     { id: 'recepcao',    label: 'Recepção',              icon: Inbox,      count: recepcao.length },
@@ -2427,19 +2524,29 @@ export default function CompanyConversations() {
 
   const currentList = tab === 'recepcao' ? recepcao : tab === 'meu-setor' ? meuSetor : finalizados
   const tagMatch = buildTagFilter(tagFilter, tagAssignments)
+  // Busca por telefone tolera o 9º dígito: "65 9911-8837" acha quem está salvo como
+  // 65 99911-8837 e vice-versa (antes só achava se digitasse igual ao banco).
+  const searchDigits = search.replace(/\D/g, '')
+  const searchVariants = (() => {
+    const d = searchDigits, v = new Set(d ? [d] : [])
+    const local = d.startsWith('55') && d.length >= 12 ? d.slice(2) : d
+    const pre = local === d ? '' : '55'
+    if (local.length === 10) v.add(pre + local.slice(0, 2) + '9' + local.slice(2))           // sem 9 → com 9
+    if (local.length === 11 && local[2] === '9') v.add(pre + local.slice(0, 2) + local.slice(3)) // com 9 → sem 9
+    return [...v]
+  })()
   const filtered = currentList
     .filter(c => {
       if (!search) return true
       const cleanNum = c.phone.replace(/\D/g, '')
       const nome = resolveName(c.phone)
-      const searchDigits = search.replace(/\D/g, '')
-      const phoneMatch = searchDigits.length > 0 && cleanNum.includes(searchDigits)
+      const phoneMatch = searchVariants.some(v => cleanNum.includes(v))
       const nameMatch = nome.toLowerCase().includes(search.toLowerCase())
       return phoneMatch || nameMatch
     })
     .filter(c => tagMatch(c.phone))
     .filter(c => !onlyUnread || unreadCounts[c.session_id] > 0)
-  const isClosed = selected ? closed.has(selected.session_id) : false
+  const isClosed = selected ? closed.has(canonSession(selected.session_id)) : false
 
   // Seleção múltipla (só nas abas não-finalizadas)
   const selectableIds = filtered.map(c => c.session_id)
@@ -2537,9 +2644,9 @@ export default function CompanyConversations() {
             </div>
           )}
           {filtered.map(c => {
-            const att = attendancesMap[c.session_id]
+            const att = attendancesMap[canonSession(c.session_id)]
             const isAssuming = assuming === c.session_id
-            const closedReason = closedMap[c.session_id]
+            const closedReason = closedMap[canonSession(c.session_id)]
             const rs = closedReason ? findReason(closedReason) : null
             const cleanNum = c.phone.replace(/\D/g, '')
             const saved = savedContacts[cleanNum]
@@ -2753,7 +2860,7 @@ export default function CompanyConversations() {
                 const saved = savedContacts[cleanNum]
                 const nome = saved?.nome || ''
                 const hasContact = !!saved
-                const att = attendancesMap[selected.session_id]
+                const att = attendancesMap[canonSession(selected.session_id)]
                 const myEmail = session?.user?.email
                 const isOwner = att?.attendant_email === myEmail
                 const isElse  = att && !isOwner
@@ -2984,7 +3091,7 @@ export default function CompanyConversations() {
                     )
                   })()}
                   {(() => {
-                    const rs = findReason(closedMap[selected.session_id])
+                    const rs = findReason(closedMap[canonSession(selected.session_id)])
                     return rs ? (
                       <span style={{
                         fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 20,
@@ -3047,7 +3154,7 @@ export default function CompanyConversations() {
             {/* Banner: conversa assumida por outro atendente (não-dono e não-admin) */}
             {(() => {
               if (isClosed) return null
-              const att = attendancesMap[selected.session_id]
+              const att = attendancesMap[canonSession(selected.session_id)]
               if (!att) return null
               const isOwner = att.attendant_email === session?.user?.email
               if (isOwner || isAdmin) return null
@@ -3074,7 +3181,7 @@ export default function CompanyConversations() {
                 significa que alguém respondeu por fora (direto no WhatsApp) — mostra
                 aviso laranja em vez do banner azul "sob IA". */}
             {(() => {
-              if (isClosed || attendancesMap[selected.session_id]) return null
+              if (isClosed || attendancesMap[canonSession(selected.session_id)]) return null
               const respondidaPorFora = messages.some(m => {
                 const t = (m.type || '').toLowerCase()
                 return t === 'atendente' || t === 'humano'
@@ -3168,7 +3275,7 @@ export default function CompanyConversations() {
               </div>
             )}
 
-            <div className="chat-body" ref={chatBodyRef}>
+            <div className="chat-body" ref={chatBodyRef} onScroll={handleChatScroll}>
               {loadingMsgs && (
                 <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', marginTop: '2rem' }}>
                   Carregando mensagens...
@@ -3305,11 +3412,11 @@ export default function CompanyConversations() {
                                 <AudioPlayer src={src} style={{ marginBottom: hasOnlyMedia ? 0 : 6 }} />
                               )
                               if (media.type === 'image') return (
-                                <img src={src} alt="mídia" style={{ maxWidth: 280, width: '100%', borderRadius: 8, display: 'block', marginBottom: hasOnlyMedia ? 0 : 6, cursor: 'zoom-in' }}
+                                <img src={src} alt="mídia" onLoad={stickIfAtBottom} style={{ maxWidth: 280, width: '100%', borderRadius: 8, display: 'block', marginBottom: hasOnlyMedia ? 0 : 6, cursor: 'zoom-in' }}
                                   onClick={() => setLightbox(src)} />
                               )
                               if (media.type === 'video') return (
-                                <video controls style={{ maxWidth: 280, width: '100%', borderRadius: 8, display: 'block', marginBottom: hasOnlyMedia ? 0 : 6 }}>
+                                <video controls onLoadedData={stickIfAtBottom} style={{ maxWidth: 280, width: '100%', borderRadius: 8, display: 'block', marginBottom: hasOnlyMedia ? 0 : 6 }}>
                                   <source src={src} type={media.mime} />
                                 </video>
                               )

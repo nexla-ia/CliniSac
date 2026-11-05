@@ -76,6 +76,17 @@ function normPhone(p) {
   if (d.length === 13 && d[4] === '9') d = d.slice(0, 4) + d.slice(5)
   return d
 }
+// Variante com o 55 garantido (normPhone acima não prefixa) — usada só pra
+// deduplicar lead ao adicionar, já que o telefone pode estar gravado noutra
+// grafia (com/sem 9, com/sem 55) e uma comparação exata deixava passar
+// duplicado, estourando erro de constraint única no INSERT.
+function crmNormPhone(p) {
+  let d = (p || '').replace(/@.*/, '').replace(/\D/g, '')
+  if (!d) return ''
+  if (d.length === 10 || d.length === 11) d = '55' + d
+  if (d.length === 13 && d.startsWith('55') && d[4] === '9') d = '55' + d.slice(2, 4) + d.slice(5)
+  return d
+}
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function CompanyCRM() {
@@ -394,6 +405,40 @@ export default function CompanyCRM() {
   }
 
   useEffect(() => { load() }, [instance])
+
+  // O board só carregava ao abrir: lead criado pelo gatilho (mensagem nova) com a
+  // tela aberta não aparecia até recarregar. Recarrega os leads em silêncio ao
+  // voltar pra aba e a cada 30s. Se der erro em qualquer página, mantém o que tem.
+  useEffect(() => {
+    if (!instance) return
+    let busy = false
+    const refresh = async () => {
+      if (busy || document.hidden) return
+      busy = true
+      try {
+        let from = 0, out = []
+        for (;;) {
+          let q = supabase.from('crm_contacts').select('*').eq('instancia', instance)
+          if (supportsRemovido) q = q.not('removido', 'is', true)
+          const { data, error } = await q.order('created_at', { ascending: false }).range(from, from + 999)
+          if (error) return
+          out.push(...(data || []))
+          if (!data || data.length < 1000) break
+          from += 1000
+        }
+        setContacts(out)
+      } finally { busy = false }
+    }
+    const onVis = () => { if (!document.hidden) refresh() }
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('focus', refresh)
+    const id = setInterval(refresh, 30000)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('focus', refresh)
+      clearInterval(id)
+    }
+  }, [instance, supportsRemovido])
   useEffect(() => { if (panel) { setPanelTimeline([]); loadPanelData(panel); setEditingName(false) } }, [panel?.id])
 
   // ── Computed ────────────────────────────────────────────────────────────────
@@ -461,10 +506,25 @@ export default function CompanyCRM() {
 
   const filteredContacts = useMemo(() => {
     const q = search.toLowerCase().trim()
+    // Telefone: ignora espaço/hífen/parênteses e tolera o 9º dígito (antes "65 9911-8837" nunca achava).
+    const qDigits = search.replace(/\D/g, '')
+    const phoneVars = (() => {
+      const d = qDigits, v = new Set(d ? [d] : [])
+      const local = d.startsWith('55') && d.length >= 12 ? d.slice(2) : d
+      const pre = local === d ? '' : '55'
+      if (local.length === 10) v.add(pre + local.slice(0, 2) + '9' + local.slice(2))           // sem 9 → com 9
+      if (local.length === 11 && local[2] === '9') v.add(pre + local.slice(0, 2) + local.slice(3)) // com 9 → sem 9
+      return [...v]
+    })()
+    const phoneMatch = (phone) => {
+      if (!phoneVars.length) return false
+      const digits = String(phone || '').replace(/\D/g, '')
+      return phoneVars.some(v => digits.includes(v))
+    }
     return contacts.filter(c => {
       if (!funnelsSetOf(c).has(activeFunnel)) return false
       if (filterTemp !== 'todos' && c.temperatura !== filterTemp) return false
-      if (q && !bestName(c).toLowerCase().includes(q) && !(c.phone||'').includes(q) && !(c.email||'').toLowerCase().includes(q)) return false
+      if (q && !bestName(c).toLowerCase().includes(q) && !phoneMatch(c.phone) && !(c.email||'').toLowerCase().includes(q)) return false
       return true
     })
   }, [contacts, memberships, search, filterTemp, activeFunnel, funnels])
@@ -576,7 +636,14 @@ export default function CompanyCRM() {
     }
     const resetForm = () => setNewForm({ nome:'', phone:'', email:'', origem:'', temperatura:'morno', stage_id:'', observacoes:'' })
     // Já existe lead com esse número (UNIQUE instancia+phone), inclusive removido?
-    const { data: existing } = await supabase.from('crm_contacts').select('*').eq('instancia', instance).eq('phone', phone).maybeSingle()
+    // Compara pela forma normalizada (com/sem 9, com/sem 55): se comparasse exato,
+    // o duplicado noutra grafia passava batido e o INSERT estourava erro de
+    // constraint única em vez de mostrar "já existe".
+    const normP = crmNormPhone(phone)
+    const tail = normP.slice(-8)
+    const { data: cands } = await supabase.from('crm_contacts')
+      .select('*').eq('instancia', instance).ilike('phone', `%${tail}`)
+    const existing = (cands || []).find(c => crmNormPhone(c.phone) === normP)
     if (existing) {
       const isRemoved = supportsRemovido && existing.removido === true
       if (!isRemoved) {
@@ -597,9 +664,13 @@ export default function CompanyCRM() {
       setNewModal(false); resetForm()
       return
     }
-    const { data: nc, error } = await supabase.from('crm_contacts').insert({ instancia: instance, phone, ...payload }).select().single()
+    // maybeSingle (não single): se uma constraint única bloquear o INSERT
+    // (telefone equivalente já existe por alguma corrida), volta sem erro — trata
+    // como "já existe" em vez de estourar "Cannot coerce the result to a single JSON object".
+    const { data: nc, error } = await supabase.from('crm_contacts').insert({ instancia: instance, phone, ...payload }).select().maybeSingle()
     setSaving(false)
-    if (error) { alert('Erro: '+error.message); return }
+    if (error && error.code !== '23505') { alert('Erro: '+error.message); return }
+    if (!nc) { alert('Já existe um lead com esse número no CRM.'); setNewModal(false); resetForm(); return }
     setContacts(p => [nc, ...p])
     setNewModal(false); resetForm()
   }
