@@ -326,6 +326,7 @@ export default function CompanyAgenda() {
     const ch = supabase.channel(`appointments-${instance}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments', filter: `instancia=eq.${instance}` },
         (p) => {
+          console.log('[agenda-realtime] evento recebido', p.eventType, p.new || p.old)
           if (p.eventType === 'DELETE') {
             setAppointments(prev => prev.filter(a => a.id !== p.old.id))
           } else if (p.new) {
@@ -336,7 +337,7 @@ export default function CompanyAgenda() {
             })
           }
         })
-      .subscribe()
+      .subscribe((status, err) => console.log('[agenda-realtime] status:', status, err || ''))
     return () => supabase.removeChannel(ch)
   }, [instance])
 
