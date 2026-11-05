@@ -28,6 +28,8 @@ const DAYS_OF_WEEK = [
 
 // Antecedências de lembrete (em minutos)
 const REMINDER_OFFSETS = [
+  { value: 60,    label: '1h antes' },
+  { value: 90,    label: '1h30 antes' },
   { value: 120,   label: '2h antes' },
   { value: 1440,  label: '1 dia antes' },
   { value: 2880,  label: '2 dias antes' },
