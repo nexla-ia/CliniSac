@@ -434,6 +434,24 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
 
   useEffect(() => { load() }, [instance, companyId, contactsTable])
 
+  // Métricas só carregava uma vez (ao abrir/trocar de empresa) — uma resposta
+  // nova de enquete (NPS) ou agendamento concluído só aparecia depois de dar F5.
+  // Recarrega sozinho ao voltar pra aba e a cada 60s (load() é pesado — faz
+  // reclassificação de leads — por isso o intervalo maior que o do CRM).
+  useEffect(() => {
+    if (!instance) return
+    const onVisible = () => { if (document.visibilityState === 'visible') load() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    const id = setInterval(load, 60000)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+      clearInterval(id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instance, companyId, contactsTable])
+
   // Range do período ativo (preset ou personalizado)
   const range = useMemo(
     () => (period === 'custom' && customRange) ? customRange : getPeriodRange(period),
