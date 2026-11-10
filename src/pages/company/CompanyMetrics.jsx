@@ -435,19 +435,35 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
   useEffect(() => { load() }, [instance, companyId, contactsTable])
 
   // Métricas só carregava uma vez (ao abrir/trocar de empresa) — uma resposta
-  // nova de enquete (NPS) ou agendamento concluído só aparecia depois de dar F5.
-  // Recarrega sozinho ao voltar pra aba e a cada 60s (load() é pesado — faz
-  // reclassificação de leads — por isso o intervalo maior que o do CRM).
+  // nova de enquete (NPS), agendamento concluído etc. só aparecia depois de
+  // dar F5. Além do fallback de foco/intervalo, assina tempo real nas tabelas
+  // que alimentam os KPIs — igual a Agenda já faz — e recarrega (com debounce,
+  // já que load() refaz tudo de uma vez e vários eventos podem chegar juntos).
   useEffect(() => {
     if (!instance) return
     const onVisible = () => { if (document.visibilityState === 'visible') load() }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', onVisible)
     const id = setInterval(load, 60000)
+
+    let debounceId = null
+    const reload = () => {
+      clearTimeout(debounceId)
+      debounceId = setTimeout(load, 1500)
+    }
+    const TABLES = ['mensagens_geral', 'appointments', 'financial_transactions', 'crm_contacts', 'kanban_cards', 'alerts']
+    const ch = supabase.channel(`metricas-${instance}`)
+    TABLES.forEach(table => {
+      ch.on('postgres_changes', { event: '*', schema: 'public', table, filter: `instancia=eq.${instance}` }, reload)
+    })
+    ch.subscribe()
+
     return () => {
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('focus', onVisible)
       clearInterval(id)
+      clearTimeout(debounceId)
+      supabase.removeChannel(ch)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instance, companyId, contactsTable])
