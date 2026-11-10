@@ -138,6 +138,7 @@ export default function CompanyCatalog() {
       duration_minutes: 30, price_particular: 0,
       professional_id: null, active: true,
       reminder_message: '',
+      recall_months: null, recall_message: '',
       _prices: {}, // map insurance_plan_id → price
     })
     setErr('')
@@ -161,6 +162,8 @@ export default function CompanyCatalog() {
       professional_id: procModal.professional_id || null,
       active: procModal.active !== false,
       reminder_message: procModal.reminder_message?.trim() || null,
+      recall_months: procModal.recall_months > 0 ? procModal.recall_months : null,
+      recall_message: procModal.recall_months > 0 ? (procModal.recall_message?.trim() || null) : null,
       instancia: instance,
     }
     const { data, error } = procModal.id
@@ -595,6 +598,33 @@ export default function CompanyCatalog() {
                 configurada em Administração (ex: 24h antes), <strong>não</strong> na hora do agendamento.
                 Use <strong>{'{nome}'}</strong> e <strong>{'{data}'}</strong>. Se vazio, usa o lembrete padrão da clínica.
               </div>
+            </Field>
+            <Field label="Recall automático (opcional)">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>Avisar pra voltar depois de</span>
+                <input className="nx-input" type="number" min={0} step={1}
+                  style={{ width: 70, fontSize: 12.5, padding: '5px 9px' }}
+                  placeholder="0"
+                  value={procModal.recall_months ?? ''}
+                  onChange={e => setProcModal(p => ({ ...p, recall_months: e.target.value ? parseInt(e.target.value) : null }))} />
+                <span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>mês(es)</span>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                Vazio ou 0 = desativado. Se preenchido, todo paciente que concluiu este procedimento e não
+                tem nenhum agendamento novo marcado recebe automaticamente um "já é hora de voltar?" quando
+                esse prazo passar.
+              </div>
+              {procModal.recall_months > 0 && (
+                <textarea className="nx-input" rows={2} style={{ marginTop: 8 }}
+                  placeholder={`Olá {nome}! 👋 Já faz um tempo desde seu(sua) {procedimento} — que tal agendar um retorno?`}
+                  value={procModal.recall_message || ''}
+                  onChange={e => setProcModal(p => ({ ...p, recall_message: e.target.value }))} />
+              )}
+              {procModal.recall_months > 0 && (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Use <strong>{'{nome}'}</strong> e <strong>{'{procedimento}'}</strong>. Se vazio, usa um texto padrão.
+                </div>
+              )}
             </Field>
           </ModalBody>
           <ModalFooter err={err} onCancel={() => setProcModal(null)} onSave={handleSaveProc} saving={saving} />
