@@ -6,7 +6,7 @@ import BillingBanner from '../../components/BillingBanner'
 import BlockedScreen from '../../components/BlockedScreen'
 import SupportWidget from '../../components/SupportWidget'
 import { shouldBlockAccess } from '../../lib/billing'
-import { MessageSquare, History, BellRing, BarChart2, Settings2, Contact2, Calendar, Sparkles, Kanban, Stethoscope, GraduationCap, Instagram, ShieldCheck, Headset, MessageSquareHeart, Menu, X, Users, DollarSign, GitMerge, Star } from 'lucide-react'
+import { MessageSquare, History, BellRing, BarChart2, Settings2, Contact2, Calendar, Sparkles, Kanban, Stethoscope, GraduationCap, Instagram, ShieldCheck, Headset, MessageSquareHeart, Menu, X, Users, DollarSign, GitMerge, Star, Send } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { fetchGruposLista } from '../../lib/queries'
@@ -198,6 +198,7 @@ export default function CompanyLayout() {
       ...(isAdmin && mod('crm') ? [{ to: '/painel/crm', icon: GitMerge, label: 'CRM' }] : []),
       ...(isAdmin && mod('financeiro') ? [{ to: '/painel/financeiro', icon: DollarSign, label: 'Financeiro' }] : []),
       ...(isAdmin && mod('catalogo') ? [{ to: '/painel/catalogo', icon: Stethoscope, label: 'Catálogo Clínico' }] : []),
+      ...(mod('disparo') ? [{ to: '/painel/disparo', icon: Send, label: 'Disparo' }] : []),
     ] },
     { title: 'Análise', items: [
       ...(isAdmin && mod('metricas') ? [{ to: '/painel/metricas', icon: BarChart2, label: 'Métricas' }] : []),

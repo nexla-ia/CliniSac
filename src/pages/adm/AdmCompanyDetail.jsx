@@ -690,6 +690,7 @@ export default function AdmCompanyDetail() {
                   { key: 'catalogo',   label: 'Catálogo Clínico', desc: 'Procedimentos e profissionais' },
                   { key: 'alertas',    label: 'Alertas',         desc: 'Notificações automáticas' },
                   { key: 'metricas',   label: 'Métricas',        desc: 'Dashboard de desempenho' },
+                  { key: 'disparo',    label: 'Disparo',         desc: 'Mensagens em massa (campanhas)' },
                 ]
                 const mods = companyForm.modules || {}
                 const allDefault = Object.keys(mods).length === 0

@@ -37,6 +37,7 @@ const CompanyGroups = lazy(() => import('./pages/company/CompanyGroups'))
 const CompanyFinanceiro = lazy(() => import('./pages/company/CompanyFinanceiro'))
 const CompanyCRM = lazy(() => import('./pages/company/CompanyCRM'))
 const CompanyTreatmentPlans = lazy(() => import('./pages/company/CompanyTreatmentPlans'))
+const CompanyDisparo = lazy(() => import('./pages/company/CompanyDisparo'))
 
 function PrivateAdm({ children }) {
   const { session } = useAuth()
@@ -111,6 +112,7 @@ export default function App() {
               <Route path="financeiro" element={<CompanyFinanceiro />} />
               <Route path="crm" element={<CompanyCRM />} />
               <Route path="planos" element={<CompanyTreatmentPlans />} />
+              <Route path="disparo" element={<CompanyDisparo />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />
