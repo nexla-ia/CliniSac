@@ -766,10 +766,10 @@ export default function CompanyKanban() {
             </div>
             <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)' }}>
               {cardErr && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#DC2626', marginBottom: 12 }}>{cardErr}</div>}
-              <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                 {cardModal.id && (
                   <button onClick={handleDeleteCard}
-                    style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', borderRadius: 8, padding: '9px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    style={{ flex: '1 1 100%', justifyContent: 'center', background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', borderRadius: 8, padding: '9px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                     <Trash2 size={13} /> Excluir
                   </button>
                 )}
