@@ -138,7 +138,7 @@ export default function CompanyCatalog() {
       duration_minutes: 30, price_particular: 0,
       professional_id: null, active: true,
       reminder_message: '',
-      recall_months: null, recall_message: '',
+      recall_months: null, recall_message: '', recall_sender_name: '',
       _prices: {}, // map insurance_plan_id → price
     })
     setErr('')
@@ -164,6 +164,7 @@ export default function CompanyCatalog() {
       reminder_message: procModal.reminder_message?.trim() || null,
       recall_months: procModal.recall_months > 0 ? procModal.recall_months : null,
       recall_message: procModal.recall_months > 0 ? (procModal.recall_message?.trim() || null) : null,
+      recall_sender_name: procModal.recall_months > 0 ? (procModal.recall_sender_name?.trim() || null) : null,
       instancia: instance,
     }
     const { data, error } = procModal.id
@@ -624,6 +625,22 @@ export default function CompanyCatalog() {
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                   Use <strong>{'{nome}'}</strong> e <strong>{'{procedimento}'}</strong>. Se vazio, usa um texto padrão.
                 </div>
+              )}
+              {procModal.recall_months > 0 && (
+                <>
+                  <input className="nx-input" style={{ marginTop: 8 }}
+                    list="recall-sender-options"
+                    placeholder="Ex: Dra. Fernanda ou Recepção (opcional)"
+                    value={procModal.recall_sender_name || ''}
+                    onChange={e => setProcModal(p => ({ ...p, recall_sender_name: e.target.value }))} />
+                  <datalist id="recall-sender-options">
+                    <option value="Recepção" />
+                    {pros.map(p => <option key={p.id} value={p.name} />)}
+                  </datalist>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Responsável pelo envio deste recall (nome de um profissional ou "Recepção"). Vazio = vai como "Sistema".
+                  </div>
+                </>
               )}
             </Field>
           </ModalBody>
