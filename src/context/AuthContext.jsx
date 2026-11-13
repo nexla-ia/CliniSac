@@ -147,7 +147,7 @@ export function AuthProvider({ children }) {
     let alive = true
     // Campos de config que, se mudarem no banco, precisam refletir na sessão.
     const CFG = ['api_instancia', 'instance', 'timezone', 'numero_base', 'name',
-      'ai_enabled', 'plan', 'contacts_table', 'history_table', 'active']
+      'ai_enabled', 'plan', 'contacts_table', 'history_table', 'active', 'disparo_monthly_limit']
     async function checkActive() {
       const [{ data: userData }, { data: companyData }] = await Promise.all([
         supabase.from('users').select('active').eq('id', session.user.id).single(),

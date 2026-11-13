@@ -104,6 +104,7 @@ export default function AdmCompanyDetail() {
       maxUsers: company.max_users ?? '',
       maxProfessionals: company.max_professionals ?? '',
       maxAgendas: company.max_agendas ?? '',
+      disparoMonthlyLimit: company.disparo_monthly_limit ?? '',
       planPriceOverride: company.plan_price_override ?? '',
       digisacUrl: company.digisac_url || '',
       aiEnabled: company.ai_enabled !== false,
@@ -136,6 +137,7 @@ export default function AdmCompanyDetail() {
       max_users: companyForm.maxUsers === '' || companyForm.maxUsers == null ? null : parseInt(companyForm.maxUsers),
       max_professionals: companyForm.maxProfessionals === '' || companyForm.maxProfessionals == null ? null : parseInt(companyForm.maxProfessionals),
       max_agendas: companyForm.maxAgendas === '' || companyForm.maxAgendas == null ? null : parseInt(companyForm.maxAgendas),
+      disparo_monthly_limit: companyForm.disparoMonthlyLimit === '' || companyForm.disparoMonthlyLimit == null ? null : parseInt(companyForm.disparoMonthlyLimit),
       plan_price_override: companyForm.planPriceOverride === '' || companyForm.planPriceOverride == null
         ? null
         : parseFloat(companyForm.planPriceOverride),
@@ -674,6 +676,14 @@ export default function AdmCompanyDetail() {
                     <label style={{ ...labelStyle, fontSize: 10 }}>Máx. agendas</label>
                     <input className="nx-input" type="number" min={1} max={500} placeholder="auto" value={companyForm.maxAgendas}
                       onChange={e => setCompanyForm(p => ({ ...p, maxAgendas: e.target.value }))} />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ ...labelStyle, fontSize: 10 }}>Limite mensal de disparo (contatos) <span style={{ fontWeight: 400, textTransform: 'none' }}>— deixe vazio pra sem limite</span></label>
+                  <input className="nx-input" type="number" min={0} placeholder="sem limite" value={companyForm.disparoMonthlyLimit}
+                    onChange={e => setCompanyForm(p => ({ ...p, disparoMonthlyLimit: e.target.value }))} />
+                  <div style={{ fontSize: 11, color: '#92400E', marginTop: 4, fontWeight: 500 }}>
+                    Teto de contatos/grupos que a empresa pode disparar mensagem em massa por mês. Ao bater o limite, a tela de Disparo bloqueia novos envios até o mês virar.
                   </div>
                 </div>
               </div>

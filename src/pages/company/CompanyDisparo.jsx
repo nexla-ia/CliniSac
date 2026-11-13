@@ -338,6 +338,14 @@ export default function CompanyDisparo() {
     return map
   }, [envios])
 
+  // Limite mensal de disparo, configurado por empresa no ADM (null = sem limite).
+  const disparoLimit = session?.company?.disparo_monthly_limit ?? null
+  const usadoEsteMes = useMemo(() => {
+    const inicioMes = new Date(new Date(agora).getFullYear(), new Date(agora).getMonth(), 1).getTime()
+    return envios.filter(e => e.status === 'enviado' && e.enviado_em && new Date(e.enviado_em).getTime() >= inicioMes).length
+  }, [envios, agora])
+  const restanteQuota = disparoLimit == null ? Infinity : Math.max(0, disparoLimit - usadoEsteMes)
+
   function contarStatus(campanhaId) {
     const lista = enviosPorCampanha[campanhaId] || []
     return {
@@ -422,13 +430,17 @@ export default function CompanyDisparo() {
     const itens = itensValidos(c)
     if (!itens.length || !c.destinatarios.length) return
     if (esperaDisparo(c, Date.now()) > 0) return
+    if (restanteQuota <= 0) {
+      alert(`Limite mensal de disparo atingido (${usadoEsteMes}/${disparoLimit} este mês). Fala com o suporte pra aumentar o limite.`)
+      return
+    }
     await sincronizarEnvios(c.id, c.destinatarios)
     const { data: pendentes } = await supabase.from('disparo_envios').select('*')
       .eq('campanha_id', c.id).in('status', ['pendente', 'erro'])
     if (!pendentes?.length) return
     setDisparoStatus(prev => ({ ...prev, [c.id]: 'disparando' }))
     try {
-      const alvo = amostraAleatoria(pendentes, DISPARO_MAX_DESTINATARIOS)
+      const alvo = amostraAleatoria(pendentes, Math.min(DISPARO_MAX_DESTINATARIOS, restanteQuota))
       const contatosAlvo = alvo.filter(e => e.tipo === 'contato')
       const gruposAlvo = alvo.filter(e => e.tipo === 'grupo')
       const payload = {
@@ -498,13 +510,29 @@ export default function CompanyDisparo() {
             {loading ? 'Carregando...' : `${campanhas.length} campanha${campanhas.length === 1 ? '' : 's'} de disparo`}
           </div>
         </div>
-        <button
-          className="nx-btn-primary"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 16px', fontSize: 12 }}
-          onClick={() => setCampanhaModal(novaCampanhaVazia())}
-        >
-          <Plus size={14} /> Nova campanha
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {disparoLimit != null && (
+            <span title="Limite mensal de disparo, configurado pelo time Nexla" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700,
+              padding: '5px 11px', borderRadius: 20,
+              ...(restanteQuota <= 0
+                ? { color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA' }
+                : restanteQuota <= disparoLimit * 0.1
+                ? { color: '#B45309', background: '#FFFBEB', border: '1px solid #FDE68A' }
+                : { color: 'var(--text-secondary)', background: '#F8FAFC', border: '1px solid var(--border)' }),
+            }}>
+              {restanteQuota <= 0 && <AlertCircle size={11} />}
+              {usadoEsteMes}/{disparoLimit} este mês
+            </span>
+          )}
+          <button
+            className="nx-btn-primary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 16px', fontSize: 12 }}
+            onClick={() => setCampanhaModal(novaCampanhaVazia())}
+          >
+            <Plus size={14} /> Nova campanha
+          </button>
+        </div>
       </div>
 
       {!loading && campanhas.length === 0 && (
@@ -526,7 +554,8 @@ export default function CompanyDisparo() {
             const espera = esperaDisparo(c)
             const contagem = contarStatus(c.id)
             const faltam = c.destinatarios.length - contagem.enviado
-            const desabilitado = faltam <= 0 || st === 'disparando' || espera > 0
+            const semQuota = restanteQuota <= 0
+            const desabilitado = faltam <= 0 || st === 'disparando' || espera > 0 || semQuota
 
             return (
               <div key={c.id} className="nx-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', cursor: 'pointer' }}
@@ -597,7 +626,8 @@ export default function CompanyDisparo() {
                   </div>
                   <button
                     disabled={desabilitado}
-                    title={espera > 0
+                    title={semQuota ? `Limite mensal de disparo atingido (${usadoEsteMes}/${disparoLimit} este mês)`
+                      : espera > 0
                       ? `Um disparo a cada ${DISPARO_COOLDOWN_MS / 60000} minutos, pra não queimar o número`
                       : faltam <= 0 ? 'Todo mundo já recebeu essa campanha'
                       : faltam > DISPARO_MAX_DESTINATARIOS ? `${faltam} faltando — envia só pra ${DISPARO_MAX_DESTINATARIOS} aleatórios por segurança`
@@ -608,19 +638,21 @@ export default function CompanyDisparo() {
                       border: 'none', cursor: desabilitado ? 'default' : 'pointer',
                       ...(st === 'ok' ? { background: '#F0FDF4', color: '#16A34A', border: '1px solid #BBF7D0' }
                         : st === 'erro' ? { background: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA' }
+                        : semQuota ? { background: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA' }
                         : espera > 0 ? { background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A' }
                         : faltam > 0 ? { background: '#2563EB', color: '#fff' }
                         : { background: '#F1F5F9', color: '#94A3B8' }),
                     }}
                     onClick={e => { e.stopPropagation(); dispararCampanha(c) }}
                   >
-                    {st === 'ok' ? <Check size={12} /> : st === 'erro' ? <AlertCircle size={12} /> : st === 'disparando' || espera > 0 ? <Clock size={12} /> : <Zap size={12} />}
+                    {st === 'ok' ? <Check size={12} /> : st === 'erro' ? <AlertCircle size={12} /> : semQuota ? <AlertCircle size={12} /> : st === 'disparando' || espera > 0 ? <Clock size={12} /> : <Zap size={12} />}
                     {st === 'disparando' ? 'Disparando...'
                       : st === 'ok' ? 'Enviado'
                       : st === 'erro' ? 'Erro'
+                      : semQuota ? 'Limite mensal atingido'
                       : espera > 0 ? fmtSegundos(espera / 1000)
                       : faltam <= 0 ? 'Concluído'
-                      : `Disparar (${Math.min(faltam, DISPARO_MAX_DESTINATARIOS)})`}
+                      : `Disparar (${Math.min(faltam, DISPARO_MAX_DESTINATARIOS, restanteQuota)})`}
                   </button>
                 </div>
               </div>
