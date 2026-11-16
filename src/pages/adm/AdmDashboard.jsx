@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { fetchDashboardMsgStats } from '../../lib/queries'
+import { PLAN_DEFAULTS, resolvePlan } from '../../lib/planLimits'
 import {
   Building2, Users, MessageSquare, AlertTriangle, Activity, Wifi, WifiOff,
   Calendar, BarChart3, Clock, TrendingUp, RefreshCw, Sparkles, Bot,
@@ -10,8 +11,10 @@ import {
 } from 'lucide-react'
 import './AdmDashboard.css'
 
-const PLAN_PRICE = { Starter: 297, Pro: 597, Business: 1497 }
-const PLAN_COLORS = { Starter: '#6B7280', Pro: '#2563EB', Business: '#8B5CF6' }
+const PLAN_PRICE = { Base: PLAN_DEFAULTS.Base.price, Completo: PLAN_DEFAULTS.Completo.price, Business: 1497 }
+const PLAN_COLORS = { Base: '#6B7280', Completo: '#2563EB', Business: '#8B5CF6', Trial: '#0891B2' }
+// Trial conta como Trial na distribuição (não entra no MRR).
+const planKey = p => p === 'Trial' ? 'Trial' : resolvePlan(p)
 
 function timeAgo(ts) {
   if (!ts) return 'nunca'
@@ -163,7 +166,7 @@ export default function AdmDashboard() {
     const todayMsgs = companyStats.reduce((s, c) => s + c.msgsToday, 0)
     const week7Msgs = companyStats.reduce((s, c) => s + c.msgs7d, 0)
     const totalAppts = companyStats.reduce((s, c) => s + c.apptsTotal, 0)
-    const mrr = db.companies.filter(c => c.active).reduce((s, c) => s + (PLAN_PRICE[c.plan] || 0), 0)
+    const mrr = db.companies.filter(c => c.active).reduce((s, c) => s + (PLAN_PRICE[planKey(c.plan)] || 0), 0)
     const onlineInstances = companyStats.filter(c => c.wppState === 'open').length
     const offlineInstances = companyStats.filter(c => c.instance && c.wppState !== 'open' && c.wppState !== 'unknown').length
     const totalSaved = data.saved.length
@@ -180,7 +183,7 @@ export default function AdmDashboard() {
   const byPlan = useMemo(() => {
     const map = {}
     db.companies.forEach(c => {
-      const p = c.plan || 'Starter'
+      const p = planKey(c.plan)
       if (!map[p]) map[p] = 0
       map[p]++
     })
@@ -409,7 +412,7 @@ export default function AdmDashboard() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="adm-cmd-top-name">{c.name}</div>
                     <div className="adm-cmd-top-meta">
-                      <span className={`adm-cmd-plan-chip ${c.plan?.toLowerCase()}`}>{c.plan}</span>
+                      <span className={`adm-cmd-plan-chip ${planKey(c.plan).toLowerCase()}`}>{planKey(c.plan)}</span>
                       · {c.activeUsers} usuários · {c.savedCt} pacientes
                     </div>
                   </div>
@@ -511,7 +514,7 @@ export default function AdmDashboard() {
                     </div>
                   </td>
                   <td>
-                    <span className={`adm-cmd-plan-chip ${c.plan?.toLowerCase()}`}>{c.plan}</span>
+                    <span className={`adm-cmd-plan-chip ${planKey(c.plan).toLowerCase()}`}>{planKey(c.plan)}</span>
                   </td>
                   <td>
                     {!c.instance ? (

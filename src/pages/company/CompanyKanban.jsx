@@ -6,6 +6,8 @@ import { supabase } from '../../lib/supabase'
 import ConfirmModal from '../../components/ConfirmModal'
 // Relatório do Kanban (saiu da tela de Métricas e mora aqui agora).
 const CompanyMetrics = lazy(() => import('./CompanyMetrics'))
+import ModuleLockedScreen from '../../components/ModuleLockedScreen'
+import { isModuleOn } from '../../lib/planLimits'
 import {
   Plus, X, Trash2, Pencil, Calendar, User as UserIcon, Flag,
   GripVertical, MoreVertical, Tag, ChevronRight, MessageCircle, ExternalLink, Link2, BarChart2,
@@ -392,9 +394,11 @@ export default function CompanyKanban() {
 
       {showReport && (
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          <Suspense fallback={<div style={{ padding: 20, color: 'var(--text-muted)', fontSize: 13 }}>Carregando relatório...</div>}>
-            <CompanyMetrics tabs={['atividades']} title="Relatório do Kanban" hideHeader />
-          </Suspense>
+          {isModuleOn(session?.company, 'metricas') ? (
+            <Suspense fallback={<div style={{ padding: 20, color: 'var(--text-muted)', fontSize: 13 }}>Carregando relatório...</div>}>
+              <CompanyMetrics tabs={['atividades']} title="Relatório do Kanban" hideHeader />
+            </Suspense>
+          ) : <ModuleLockedScreen moduleKey="metricas" />}
         </div>
       )}
 

@@ -798,7 +798,7 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
               }
               setTab(t.key)
             }}
-              title={locked ? `Disponível a partir do plano Pro` : ''}
+              title={locked ? 'Disponível no Plano Completo' : ''}
               style={{
                 padding: '10px 14px', border: 'none', background: 'none', cursor: 'pointer',
                 borderBottom: tab === t.key ? '2px solid #2563EB' : '2px solid transparent',
@@ -832,7 +832,7 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
       ) : (!advancedAllowed && ADVANCED_TABS.includes(tab)) ? (
         <div className="nx-card" style={{ padding: '2.5rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
           <Lock size={20} style={{ marginBottom: 8 }} />
-          <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Relatório disponível a partir do plano Pro</div>
+          <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Relatório disponível no Plano Completo</div>
           <button className="nx-btn-primary" style={{ fontSize: 12.5, marginTop: 8 }} onClick={() => setLimitModal(upgradeMessage('advanced_metrics', null, limits.plan))}>Ver planos</button>
         </div>
       ) : (

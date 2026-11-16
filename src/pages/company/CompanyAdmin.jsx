@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { fetchDistinctGrupos } from '../../lib/queries'
 import ConfirmModal from '../../components/ConfirmModal'
 import LimitReachedModal from '../../components/LimitReachedModal'
-import { getEffectiveLimits, reachedLimit, upgradeMessage, formatLimit, PLAN_DEFAULTS, UNLIMITED } from '../../lib/planLimits'
+import { getEffectiveLimits, reachedLimit, upgradeMessage, formatLimit, PLAN_DEFAULTS, UNLIMITED, ADDON_USER_PRICE } from '../../lib/planLimits'
 import { computeBillingStatus, fmtMoney, fmtDateBR, statusBadge, BILLING_STATUS } from '../../lib/billing'
 import { Plus, X, UserMinus, RefreshCw, UserCheck, UserX, Pencil, QrCode, Wifi, WifiOff, LogOut, Trash2, Lock, Bell, Crown, Sparkles, TrendingUp, ArrowUpRight, Calendar as CalendarIcon, Users as UsersIcon, Stethoscope, Layers, Tag as TagIcon, Check } from 'lucide-react'
 import './Company.css'
@@ -398,21 +398,21 @@ export default function CompanyAdmin() {
   const activeUsers = users.filter(u => u.active !== false)
 
   // Plan/billing data pro card hero do topo
-  const planName  = limits.plan || 'Starter'
-  const planDef   = PLAN_DEFAULTS[planName] || PLAN_DEFAULTS.Starter
+  const planName  = limits.plan || 'Base'
+  const planDef   = PLAN_DEFAULTS[planName] || PLAN_DEFAULTS.Base
   const PLAN_THEMES = {
-    Starter:  { bg: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: 'rgba(217, 119, 6, 0.20)',  numColor: '#B45309', accent: '#D97706', accentSoft: '#FED7AA', icon: Sparkles, glow: 'rgba(250, 204, 21, 0.30)' },
-    Pro:      { bg: 'linear-gradient(135deg, #0F0E1B 0%, #1E1B2E 100%)', border: 'rgba(184, 137, 92, 0.4)', numColor: '#FCD34D', accent: '#C9A074', accentSoft: '#A37846', icon: Crown,    glow: 'rgba(201, 160, 116, 0.35)', dark: true },
+    Base:     { bg: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: 'rgba(217, 119, 6, 0.20)',  numColor: '#B45309', accent: '#D97706', accentSoft: '#FED7AA', icon: Sparkles, glow: 'rgba(250, 204, 21, 0.30)' },
+    Completo: { bg: 'linear-gradient(135deg, #0F0E1B 0%, #1E1B2E 100%)', border: 'rgba(184, 137, 92, 0.4)', numColor: '#FCD34D', accent: '#C9A074', accentSoft: '#A37846', icon: Crown,    glow: 'rgba(201, 160, 116, 0.35)', dark: true },
     Business: { bg: 'linear-gradient(135deg, #2E1065 0%, #4C1D95 100%)', border: 'rgba(167, 139, 250, 0.5)', numColor: '#DDD6FE', accent: '#A78BFA', accentSoft: '#7C3AED', icon: TrendingUp, glow: 'rgba(167, 139, 250, 0.35)', dark: true },
   }
-  const planTheme = PLAN_THEMES[planName] || PLAN_THEMES.Starter
+  const planTheme = PLAN_THEMES[planName] || PLAN_THEMES.Base
   const PlanIcon = planTheme.icon
 
   const billing = computeBillingStatus(session?.company)
   const billingBadge = statusBadge(billing.status)
   const displayPrice = session?.company?.plan_price_override ?? planDef.price
 
-  const upgradeTarget = planName === 'Starter' ? 'Pro' : planName === 'Pro' ? 'Business' : null
+  const upgradeTarget = planName === 'Base' ? 'Plano Completo' : null
   const upgradeWhatsApp = `https://wa.me/5561999999999?text=${encodeURIComponent(`Olá! Quero fazer upgrade do meu plano CliniSac (atual: ${planName}${upgradeTarget ? ` → ${upgradeTarget}` : ''}). Empresa: ${session?.company?.name || ''}`)}`
 
   // Helper pra renderizar uma mini stat com barra de progresso
@@ -1043,7 +1043,7 @@ export default function CompanyAdmin() {
           <div>
             <div className="section-title">Usuários ({activeUsers.length} / {formatLimit(maxUsers)})</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-              Plano <strong>{limits.plan}</strong> · {limits.extra_users > 0 ? <>+{limits.extra_users} usuário{limits.extra_users > 1 ? 's' : ''} extras (R$39 cada)</> : <>limite padrão do plano</>}
+              Plano <strong>{limits.plan}</strong> · {limits.extra_users > 0 ? <>+{limits.extra_users} usuário{limits.extra_users > 1 ? 's' : ''} extras (R${ADDON_USER_PRICE} cada)</> : <>limite padrão do plano</>}
             </div>
           </div>
           <button

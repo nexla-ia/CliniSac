@@ -430,7 +430,7 @@ export function AuthProvider({ children }) {
       .insert({
         name: data.name,
         slug,
-        plan: data.plan || 'Starter',
+        plan: data.plan || 'Base',
         contacts_table: data.contactsTable || null,
         history_table: data.historyTable || null,
         instance: data.instance || null,

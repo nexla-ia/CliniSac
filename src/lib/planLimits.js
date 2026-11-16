@@ -4,21 +4,24 @@
 // Cada plano tem:
 //   - Limites quantitativos (profissionais, usuários, agendas, etc)
 //   - Feature flags (métricas avançadas, round-robin, etc)
+//   - Módulos que o plano não inclui (locked_modules)
 //
 // As empresas podem ter overrides individuais em `companies` (ex: extra_users
-// pra add-on de R$39/usuário, ou max_professionals customizado pra cliente
+// pra add-on de R$49/usuário, ou max_professionals customizado pra cliente
 // especial). Quando o override for null, cai no default do plano.
 // ────────────────────────────────────────────────────────────────────────────
 
 export const UNLIMITED = Infinity
 
 // Defaults por plano. UNLIMITED = sem limite.
+// locked_modules: módulos que o plano NÃO inclui (aparecem com cadeado). O ADM
+// pode liberar ou bloquear um módulo à parte por empresa (companies.modules).
 export const PLAN_DEFAULTS = {
-  Starter: {
-    label: 'Starter',
-    price: 247,
+  Base: {
+    label: 'Plano Base',
+    price: 200,
     professionals: 3,
-    users: 5,
+    users: 3,
     agendas: 1,
     whatsapp_instances: 1,
     instagram_accounts: 0,
@@ -30,12 +33,15 @@ export const PLAN_DEFAULTS = {
     ia_posts: false,
     ia_laudos: false,
     api_custom: false,
+    // Financeiro, Métricas e as automações da jornada (NPS pós-consulta e Disparo)
+    // são do Plano Completo.
+    locked_modules: ['financeiro', 'metricas', 'nps', 'disparo'],
   },
-  Pro: {
-    label: 'Pro',
-    price: 597,
+  Completo: {
+    label: 'Plano Completo',
+    price: 359,
     professionals: 25,
-    users: 20,
+    users: UNLIMITED,
     agendas: UNLIMITED,
     whatsapp_instances: 1,
     instagram_accounts: 1,
@@ -46,6 +52,7 @@ export const PLAN_DEFAULTS = {
     ia_posts: false,
     ia_laudos: false,
     api_custom: false,
+    locked_modules: [],
   },
   Business: {
     label: 'Business',
@@ -62,19 +69,47 @@ export const PLAN_DEFAULTS = {
     ia_posts: true,        // Em breve
     ia_laudos: true,       // Em breve
     api_custom: true,
+    locked_modules: [],
   },
 }
 
-export const PLAN_NAMES = ['Starter', 'Pro', 'Business']
+export const PLAN_NAMES = ['Base', 'Completo', 'Business']
 
-// Add-on de usuário extra: R$ 39/mês cada, disponível em Starter e Pro
-export const ADDON_USER_PRICE = 39
+// Nomes antigos que ainda podem estar gravados em companies.plan.
+// Trial (7 dias grátis) testa com tudo liberado.
+const PLAN_ALIASES = { Starter: 'Base', Pro: 'Completo', Trial: 'Completo' }
+
+// Chave do plano efetivo (Base / Completo / Business) a partir do valor gravado.
+export function resolvePlan(plan) {
+  if (plan && PLAN_DEFAULTS[plan]) return plan
+  return PLAN_ALIASES[plan] || 'Base'
+}
+
+// Nome pra mostrar (Trial continua aparecendo como Trial).
+export function planLabel(plan) {
+  if (plan === 'Trial') return 'Trial'
+  return PLAN_DEFAULTS[resolvePlan(plan)].label
+}
+
+// Add-on de usuário extra: R$ 49/mês cada (Plano Base)
+export const ADDON_USER_PRICE = 49
+
+// Módulo ligado pra empresa? Override do ADM (true/false em companies.modules)
+// vence; sem override, vale o que o plano inclui.
+export function planIncludesModule(plan, key) {
+  return !PLAN_DEFAULTS[resolvePlan(plan)].locked_modules.includes(key)
+}
+export function isModuleOn(company, key) {
+  const o = company?.modules?.[key]
+  if (o === true || o === false) return o
+  return planIncludesModule(company?.plan, key)
+}
 
 // Resolve os limites efetivos pra uma empresa específica (plano + overrides).
 // Retorna sempre um objeto com TODOS os campos resolvidos.
 export function getEffectiveLimits(company) {
-  if (!company) return PLAN_DEFAULTS.Starter
-  const plan = company.plan && PLAN_DEFAULTS[company.plan] ? company.plan : 'Starter'
+  if (!company) return { ...PLAN_DEFAULTS.Base, plan: 'Base', extra_users: 0 }
+  const plan = resolvePlan(company.plan)
   const defaults = PLAN_DEFAULTS[plan]
 
   const extraUsers = Number(company.extra_users || 0)
@@ -107,33 +142,33 @@ export function upgradeMessage(resource, limit, planName) {
   const messages = {
     professionals: {
       title: 'Limite de profissionais atingido',
-      body: `Seu plano ${planName} cobre até ${formatLimit(limit)} profissionais cadastrados. Pra liberar mais, é só subir de plano (ou pedir um override pro time).`,
+      body: `Seu plano cobre até ${formatLimit(limit)} profissionais cadastrados. Pra liberar mais, fale com o time.`,
       cta: 'Falar com o time',
     },
     users: {
       title: 'Limite de usuários atingido',
-      body: `Seu plano ${planName} cobre ${formatLimit(limit)} usuários. Você pode adicionar usuários extras (R$ 39/mês cada) ou subir de plano pra liberar muito mais.`,
+      body: `Seu plano cobre ${formatLimit(limit)} usuários. Você pode adicionar usuários extras (R$ ${ADDON_USER_PRICE}/mês cada) ou passar pro Plano Completo, com usuários ilimitados.`,
       cta: 'Falar com o time',
     },
     agendas: {
       title: 'Limite de agendas atingido',
-      body: `Seu plano ${planName} cobre ${formatLimit(limit)} agenda${limit > 1 ? 's' : ''}. No Pro são ilimitadas — fala com a gente pra subir.`,
+      body: `Seu plano cobre ${formatLimit(limit)} agenda${limit > 1 ? 's' : ''}. No Plano Completo elas são ilimitadas. Fale com a gente pra mudar de plano.`,
       cta: 'Falar com o time',
     },
     instagram: {
-      title: 'Instagram disponível só no Pro',
-      body: 'Instagram unificado com IA está disponível a partir do plano Pro. Sobe de plano pra ativar.',
+      title: 'Instagram disponível no Plano Completo',
+      body: 'O Instagram unificado está disponível no Plano Completo. Fale com a gente pra ativar.',
       cta: 'Falar com o time',
     },
     advanced_metrics: {
-      title: 'Métricas avançadas só no Pro',
-      body: 'As abas Equipe, Financeiro e Leads são exclusivas do Pro. Visão geral, Atendimento e Agenda continuam no Starter.',
+      title: 'Métricas avançadas no Plano Completo',
+      body: 'As abas Equipe e Financeiro fazem parte do Plano Completo.',
       cta: 'Falar com o time',
     },
   }
   return messages[resource] || {
     title: 'Recurso indisponível no seu plano',
-    body: `Seu plano ${planName} não inclui esse recurso. Fala com a gente pra subir de plano.`,
+    body: 'Seu plano não inclui esse recurso. Fale com a gente pra mudar de plano.',
     cta: 'Falar com o time',
   }
 }

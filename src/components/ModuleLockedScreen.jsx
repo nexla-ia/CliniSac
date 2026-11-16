@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import {
   Lock, MessageCircle, CheckCircle2, MessageSquare, Users, BellRing, Contact2,
   Calendar, Kanban, GitMerge, DollarSign, Stethoscope, BarChart2, Instagram,
-  Sparkles, Zap, Target, TrendingUp, Clock, ShieldCheck, FileText, Bell, Send,
+  Sparkles, Zap, Target, TrendingUp, Clock, ShieldCheck, FileText, Bell, Send, Star,
 } from 'lucide-react'
 import './ModuleLockedScreen.css'
 
@@ -120,6 +120,16 @@ export const MODULE_INFO = {
       [Users, 'Contatos e grupos', 'Escolha quem recebe cada campanha'],
       [MessageCircle, 'Texto e imagens', 'Até 5 partes por campanha'],
       [ShieldCheck, 'Protege o número', 'Limite por envio e intervalo entre disparos'],
+    ],
+  },
+  nps: {
+    label: 'NPS', icon: Star, preview: 'chart',
+    title: ['Pesquisa de satisfação', 'automática', 'depois da consulta'],
+    sub: 'Depois do atendimento, o paciente recebe uma enquete pelo WhatsApp. Quem gostou é convidado a avaliar a clínica no Google.',
+    features: [
+      [MessageCircle, 'Pesquisa pelo WhatsApp', '1h depois da consulta concluída'],
+      [Star, 'Avaliação no Google', 'Link só pra quem gostou'],
+      [Bell, 'Alerta pra recepção', 'Quando o paciente não gostou'],
     ],
   },
   metricas: {

@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { ArrowLeft, Plus, X, UserCheck, UserX, RefreshCw, Pencil, Settings, Layers, UserMinus, Trash2 } from 'lucide-react'
 import AdmCompanyBilling from './AdmCompanyBilling'
+import { resolvePlan, planIncludesModule, ADDON_USER_PRICE, PLAN_DEFAULTS } from '../../lib/planLimits'
 import './Adm.css'
 
 const SECTOR_COLORS = [
@@ -99,7 +100,7 @@ export default function AdmCompanyDetail() {
       apiInstancia: company.api_instancia || '',
       historyTable: company.history_table || '',
       contactsTable: company.contacts_table || 'clientes',
-      plan: company.plan || 'Starter',
+      plan: company.plan === 'Trial' ? 'Trial' : resolvePlan(company.plan),
       extraUsers: company.extra_users ?? 0,
       maxUsers: company.max_users ?? '',
       maxProfessionals: company.max_professionals ?? '',
@@ -132,7 +133,7 @@ export default function AdmCompanyDetail() {
       api_instancia: companyForm.apiInstancia || null,
       history_table: companyForm.historyTable || null,
       contacts_table: companyForm.contactsTable || null,
-      plan: companyForm.plan || 'Starter',
+      plan: companyForm.plan || 'Base',
       extra_users: parseInt(companyForm.extraUsers) || 0,
       max_users: companyForm.maxUsers === '' || companyForm.maxUsers == null ? null : parseInt(companyForm.maxUsers),
       max_professionals: companyForm.maxProfessionals === '' || companyForm.maxProfessionals == null ? null : parseInt(companyForm.maxProfessionals),
@@ -635,13 +636,14 @@ export default function AdmCompanyDetail() {
                     <label style={labelStyle}>Plano</label>
                     <select className="nx-select" value={companyForm.plan}
                       onChange={e => setCompanyForm(p => ({ ...p, plan: e.target.value }))}>
-                      <option value="Starter">Starter — R$ 247</option>
-                      <option value="Pro">Pro — R$ 597</option>
-                      <option value="Business">Business — Sob medida</option>
+                      <option value="Base">Plano Base: R$ {PLAN_DEFAULTS.Base.price}</option>
+                      <option value="Completo">Plano Completo: R$ {PLAN_DEFAULTS.Completo.price}</option>
+                      <option value="Business">Business: sob medida</option>
+                      {companyForm.plan === 'Trial' && <option value="Trial">Trial (teste grátis)</option>}
                     </select>
                   </div>
                   <div>
-                    <label style={labelStyle}>Add-on usuários extras <span style={{ fontWeight: 400, textTransform: 'none' }}>(R$ 39/mês cada)</span></label>
+                    <label style={labelStyle}>Add-on usuários extras <span style={{ fontWeight: 400, textTransform: 'none' }}>(R$ {ADDON_USER_PRICE}/mês cada)</span></label>
                     <input className="nx-input" type="number" min={0} max={200} value={companyForm.extraUsers}
                       onChange={e => setCompanyForm(p => ({ ...p, extraUsers: e.target.value }))} />
                   </div>
@@ -649,7 +651,7 @@ export default function AdmCompanyDetail() {
                 <div>
                   <label style={labelStyle}>Valor negociado (R$) <span style={{ fontWeight: 400, textTransform: 'none' }}>— deixe vazio pra usar o preço padrão do plano</span></label>
                   <input className="nx-input" type="number" min={0} step="0.01"
-                    placeholder={companyForm.plan === 'Starter' ? '247' : companyForm.plan === 'Pro' ? '597' : ''}
+                    placeholder={PLAN_DEFAULTS[resolvePlan(companyForm.plan)]?.price != null ? String(PLAN_DEFAULTS[resolvePlan(companyForm.plan)].price) : ''}
                     value={companyForm.planPriceOverride}
                     onChange={e => setCompanyForm(p => ({ ...p, planPriceOverride: e.target.value }))} />
                   {companyForm.planPriceOverride !== '' && companyForm.planPriceOverride != null && (
@@ -700,18 +702,22 @@ export default function AdmCompanyDetail() {
                   { key: 'financeiro', label: 'Financeiro',      desc: 'Orçamentos e pagamentos' },
                   { key: 'catalogo',   label: 'Catálogo Clínico', desc: 'Procedimentos e profissionais' },
                   { key: 'alertas',    label: 'Alertas',         desc: 'Notificações automáticas' },
-                  { key: 'metricas',   label: 'Métricas',        desc: 'Dashboard de desempenho' },
+                  { key: 'metricas',   label: 'Métricas',        desc: 'Dashboard e relatórios' },
+                  { key: 'nps',        label: 'NPS',             desc: 'Pesquisa pós-consulta e avaliação Google' },
                   { key: 'disparo',    label: 'Disparo',         desc: 'Mensagens em massa (campanhas)' },
                 ]
                 const mods = companyForm.modules || {}
                 const allDefault = Object.keys(mods).length === 0
-                // Habilitado = ausência da chave (padrão). Desabilitar grava `false`;
-                // reabilitar remove a chave (mantém o objeto limpo → salva null se vazio).
+                // Sem chave = segue o plano. Clicar grava a exceção (true libera um
+                // módulo fora do plano, false bloqueia um que o plano inclui); voltar
+                // pro que o plano diz remove a chave (objeto vazio → salva null).
+                const byPlan = key => planIncludesModule(companyForm.plan, key)
+                const isOn = key => (mods[key] === true || mods[key] === false) ? mods[key] : byPlan(key)
                 const toggle = key => setCompanyForm(p => {
-                  const cur = p.modules || {}
-                  const next = { ...cur }
-                  if (cur[key] === false) delete next[key]   // reabilita
-                  else next[key] = false                     // desabilita
+                  const next = { ...(p.modules || {}) }
+                  const want = !isOn(key)
+                  if (want === byPlan(key)) delete next[key]
+                  else next[key] = want
                   return { ...p, modules: next }
                 })
                 return (
@@ -733,15 +739,16 @@ export default function AdmCompanyDetail() {
                           color: '#1D4ED8', cursor: 'pointer', fontWeight: 600,
                         }}
                       >
-                        {allDefault ? '✓ Todos habilitados' : 'Restaurar padrão'}
+                        {allDefault ? '✓ Padrão do plano' : 'Voltar ao padrão do plano'}
                       </button>
                     </div>
                     <div style={{ fontSize: 11, color: '#1E40AF', opacity: .7, marginTop: -6 }}>
-                      Desative os módulos que este cliente não tem no pacote contratado.
+                      Vem do plano escolhido acima. Clique pra liberar ou bloquear um módulo só pra este cliente.
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                       {MODULES.map(m => {
-                        const enabled = mods[m.key] !== false
+                        const enabled = isOn(m.key)
+                        const exception = mods[m.key] === true || mods[m.key] === false
                         return (
                           // Um único onClick no card (não é mais <label>, que reencaminhava
                           // o clique pro checkbox e disparava o toggle 2x = não mudava nada).
@@ -767,6 +774,11 @@ export default function AdmCompanyDetail() {
                               <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 1 }}>
                                 {m.desc}
                               </div>
+                              {exception && (
+                                <div style={{ fontSize: 10, fontWeight: 700, color: '#1D4ED8', marginTop: 2 }}>
+                                  {enabled ? 'Liberado à parte' : 'Bloqueado à parte'}
+                                </div>
+                              )}
                             </div>
                           </div>
                         )

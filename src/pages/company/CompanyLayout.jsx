@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { fetchGruposLista } from '../../lib/queries'
 import { latestUpdateDate } from '../../data/updates'
+import { isModuleOn, resolvePlan, planLabel } from '../../lib/planLimits'
 import './Company.css'
 
 export default function CompanyLayout() {
@@ -177,9 +178,8 @@ export default function CompanyLayout() {
   const lastSeen = typeof window !== 'undefined' ? localStorage.getItem('nx_news_seen') : null
   const hasNewUpdate = !lastSeen || lastSeen < latestUpdateDate()
 
-  // modules: null = tudo habilitado; objeto = apenas as chaves false estão desativadas
-  const mods = session?.company?.modules || {}
-  const mod = key => mods[key] !== false  // true por padrão
+  // Módulo ligado = o plano inclui (ou o ADM liberou à parte em companies.modules).
+  const mod = key => isModuleOn(session?.company, key)
   // Módulo não contratado CONTINUA no menu, com cadeado: ao abrir, mostra uma prévia
   // bloqueada com convite pra liberar (vende o módulo em vez de escondê-lo).
   const item = (key, link) => mod(key) ? link : { ...link, locked: true, badge: null }
@@ -207,7 +207,7 @@ export default function CompanyLayout() {
     ] },
     { title: 'Análise', items: [
       ...(isAdmin ? [item('metricas', { to: '/painel/metricas', icon: BarChart2, label: 'Métricas' })] : []),
-      ...(isAdmin ? [item('metricas', { to: '/painel/nps', icon: Star, label: 'NPS' })] : []),
+      ...(isAdmin ? [item('nps', { to: '/painel/nps', icon: Star, label: 'NPS' })] : []),
     ] },
     { title: 'Conta & Ajuda', items: [
       ...(isAdmin ? [{ to: '/painel/admin', icon: Settings2, label: 'Administração' }] : []),
@@ -232,7 +232,7 @@ export default function CompanyLayout() {
     ['/painel/grupos', 'grupos'], ['/painel/alertas', 'alertas'], ['/painel/contatos', 'contatos'],
     ['/painel/agenda', 'agenda'], ['/painel/atividades', 'kanban'], ['/painel/crm', 'crm'],
     ['/painel/financeiro', 'financeiro'], ['/painel/catalogo', 'catalogo'], ['/painel/metricas', 'metricas'],
-    ['/painel/nps', 'metricas'], ['/painel/disparo', 'disparo'],
+    ['/painel/nps', 'nps'], ['/painel/disparo', 'disparo'],
   ]
   const lockedModule = (ROUTE_MODULE.find(([p]) => location.pathname === p || location.pathname.startsWith(p + '/')) || [])[1]
   const routeLocked = lockedModule && !mod(lockedModule)
@@ -256,12 +256,12 @@ export default function CompanyLayout() {
           </button>
           <div className="company-topbar-name">{session?.company?.name}</div>
           <span className={`nx-badge nx-badge-${
-            session?.company?.plan === 'Business' ? 'violet' :
-            session?.company?.plan === 'Pro' ? 'cyan' :
             session?.company?.plan === 'Trial' ? 'amber' :
+            resolvePlan(session?.company?.plan) === 'Business' ? 'violet' :
+            resolvePlan(session?.company?.plan) === 'Completo' ? 'cyan' :
             'gray'
           }`}>
-            {session?.company?.plan === 'Trial' ? '⚡ Trial' : session?.company?.plan}
+            {session?.company?.plan === 'Trial' ? '⚡ Trial' : planLabel(session?.company?.plan)}
           </span>
         </div>
         <BillingBanner company={session?.company} />

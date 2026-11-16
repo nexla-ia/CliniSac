@@ -13,6 +13,8 @@ import {
 import { useContactTags, TagPicker, TagList, TagFilter, buildTagFilter } from '../../components/Tags'
 // Relatório do CRM (saiu da tela de Métricas e mora aqui agora).
 const CompanyMetrics = lazy(() => import('./CompanyMetrics'))
+import ModuleLockedScreen from '../../components/ModuleLockedScreen'
+import { isModuleOn } from '../../lib/planLimits'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -1303,9 +1305,11 @@ export default function CompanyCRM() {
       {/* ── Listas View ── */}
       {activeView === 'relatorio' && (
         <div style={{ flex:1, overflowY:'auto', padding:'16px 20px' }}>
-          <Suspense fallback={<div style={{ padding:20, color:C.muted, fontSize:13 }}>Carregando relatório...</div>}>
-            <CompanyMetrics tabs={['crm']} title="Relatório do CRM" />
-          </Suspense>
+          {isModuleOn(session?.company, 'metricas') ? (
+            <Suspense fallback={<div style={{ padding:20, color:C.muted, fontSize:13 }}>Carregando relatório...</div>}>
+              <CompanyMetrics tabs={['crm']} title="Relatório do CRM" />
+            </Suspense>
+          ) : <ModuleLockedScreen moduleKey="metricas" />}
         </div>
       )}
 

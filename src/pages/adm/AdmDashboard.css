@@ -293,6 +293,8 @@
   color: #6B7280;
 }
 .adm-cmd-plan-chip.pro { background: #EFF6FF; color: #2563EB; }
+.adm-cmd-plan-chip.completo { background: #EFF6FF; color: #2563EB; }
+.adm-cmd-plan-chip.trial { background: #ECFEFF; color: #0891B2; }
 .adm-cmd-plan-chip.business { background: #F5F3FF; color: #8B5CF6; }
 
 /* ─── Heatmap ─────────────────────────────────────────────────────────────── */
