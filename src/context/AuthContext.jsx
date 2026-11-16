@@ -263,7 +263,7 @@ export function AuthProvider({ children }) {
     if (authError || !auth?.user) {
       const msg = String(authError?.message || '')
       if (/network|fetch/i.test(msg)) {
-        return { ok: false, error: 'Erro ao conectar com o servidor. Tente novamente.' }
+        return { ok: false, error: 'Não conseguimos conectar agora. Provavelmente estamos subindo uma atualização de melhoria. Aguarde só um instante e tente novamente. 🙂' }
       }
       return { ok: false, error: 'E-mail ou senha incorretos.' }
     }
