@@ -13,6 +13,7 @@ import { useContactTags, TagPicker, TagList, TagFilter, stripPhoneSuffix, buildT
 import QuickMessages from '../../components/QuickMessages'
 import ConfirmModal from '../../components/ConfirmModal'
 import ImageLightbox from '../../components/ImageLightbox'
+import LazyMedia, { announcesMediaKind } from '../../components/LazyMedia'
 import './Company.css'
 
 const CONV_TABLE = 'mensagens_geral'
@@ -34,6 +35,9 @@ async function fetchAllByInstance(table, columns, orderCol, inst) {
   }
   return all
 }
+
+// Colunas do thread SEM o base64 (mídia baixada sob demanda, on-view) — corta egress.
+const MSG_COLS = 'id, nome, instancia, numero, mensagem, "horaLastMessage", type, created_at, id_mensagem, aplicativo, recipient_id, idgrupo, nomegrupo, apagada, quoted_id_mensagem, quoted_text, contact_card, location, reaction, poll_name, poll_options, poll_votes, poll_kind, poll_selectable_count, poll_appointment_id, delivered_at, read_at, send_error_at, tem_midia'
 
 function formatPhone(val) {
   return (val || '').replace(/@.*$/, '')
@@ -451,6 +455,16 @@ export default function CompanyConversations() {
   const [loadingMsgs, setLoadingMsgs] = useState(false)
   const [hasMoreMsgs, setHasMoreMsgs] = useState(false)
   const [loadingMoreMsgs, setLoadingMoreMsgs] = useState(false)
+  // Colunas do thread: '*' (seguro) até confirmar que tem_midia existe, então
+  // vira o modo leve (sem base64). Evita quebra por ordem de deploy da migration.
+  const [msgCols, setMsgCols] = useState('*')
+  useEffect(() => {
+    let active = true
+    supabase.from(CONV_TABLE).select('tem_midia').limit(1).then(({ error }) => {
+      if (active && !error) setMsgCols(MSG_COLS)
+    })
+    return () => { active = false }
+  }, [])
   const [closeModal, setCloseModal]   = useState(null)
   const [reason, setReason]           = useState('')
   const [customReasons, setCustomReasons] = useState([]) // motivos criados pela empresa
@@ -1345,7 +1359,7 @@ export default function CompanyConversations() {
     initialScrollRef.current = false   // nova conversa: o próximo render pula pro fim
     atBottomRef.current = true
     prevCountRef.current = 0
-    supabase.from(CONV_TABLE).select('*')
+    supabase.from(CONV_TABLE).select(msgCols)
       .eq('instancia', instance)
       .in('numero', numeroVariants(selected.session_id))
       .is('idgrupo', null)
@@ -1374,6 +1388,7 @@ export default function CompanyConversations() {
             type: getMessageType(r),
             content: getMessageContent(r),
             base64: r.base64 || null,
+            temMidia: r.tem_midia,
             apagada: r.apagada || false,
             reaction: r.reaction || null,
             nome: r.nome || null,
@@ -1392,7 +1407,7 @@ export default function CompanyConversations() {
     setLoadingMoreMsgs(true)
     const prevScrollHeight = chatBodyRef.current?.scrollHeight || 0
     const { data, error } = await supabase.from(CONV_TABLE)
-      .select('*')
+      .select(msgCols)
       .eq('instancia', instance)
       .in('numero', numeroVariants(selected.session_id))
       .is('idgrupo', null)
@@ -1420,6 +1435,7 @@ export default function CompanyConversations() {
         type: getMessageType(r),
         content: getMessageContent(r),
         base64: r.base64 || null,
+        temMidia: r.tem_midia,
         apagada: r.apagada || false,
         reaction: r.reaction || null,
         nome: r.nome || null,
@@ -2327,7 +2343,7 @@ export default function CompanyConversations() {
     const clean = (msg.content || '').replace(/^\*[^*]+\*:\n?/, '').trim()
     setReplyingTo({
       id_mensagem: msg.id_mensagem || null,
-      content: clean.slice(0, 200) || (msg.base64 ? '📎 Mídia' : ''),
+      content: clean.slice(0, 200) || ((msg.base64 || msg.temMidia) ? '📎 Mídia' : ''),
       type: msg.type,
       numero: selected?.session_id,
     })
@@ -2380,6 +2396,7 @@ export default function CompanyConversations() {
       type: getMessageType(r),
       content: getMessageContent(r),
       base64: r.base64 || null,
+      temMidia: r.tem_midia,
       apagada: r.apagada || false,
       nome: r.nome || null,
       ts: getTimestamp(r),
@@ -2396,7 +2413,7 @@ export default function CompanyConversations() {
     const esc = q.replace(/[\\%_]/g, s => '\\' + s)
     const h = setTimeout(async () => {
       const { data } = await supabase.from(CONV_TABLE)
-        .select('*')
+        .select(msgCols)
         .eq('instancia', instance)
         .in('numero', numeroVariants(selected.session_id))
         .is('idgrupo', null)
@@ -2417,7 +2434,7 @@ export default function CompanyConversations() {
     if (messages.some(m => m.id === row.id)) { flashDbMessage(row.id); return }
     setJumpingTo(row.id)
     const oldestId = messages[0]?.id
-    let query = supabase.from(CONV_TABLE).select('*')
+    let query = supabase.from(CONV_TABLE).select(msgCols)
       .eq('instancia', instance).in('numero', numeroVariants(selected.session_id))
       .is('idgrupo', null).or('aplicativo.eq.whatsapp,aplicativo.is.null')
       .gte('id', row.id).order('id', { ascending: false }).limit(1000)
@@ -3356,6 +3373,11 @@ export default function CompanyConversations() {
                       {(() => {
                         const media = detectMedia(msg.base64)
                         const rawContent = msg.content || ''
+                        // Mídia ainda não baixada (tem_midia nas novas, rótulo emoji nas antigas):
+                        // baixa o base64 sob demanda quando a bolha aparece na tela.
+                        const lazyKind = announcesMediaKind(rawContent)
+                        // (base64 já veio mas não decodifica → não é "pendente": cai no aviso de mídia falhou)
+                        const wantsMedia = !media && !msg.base64 && (msg.temMidia === true || (msg.temMidia == null && !!lazyKind))
                         const fileLineMatch = rawContent.match(/^(🎤 Áudio|🖼️ [^\n]+|📄 [^\n]+|🎬 [^\n]+|📎 [^\n]+)(\n([\s\S]*))?$/)
                         const fileLine = fileLineMatch?.[1] || null
                         const extraText = fileLineMatch?.[3]?.trim() || ''
@@ -3369,7 +3391,7 @@ export default function CompanyConversations() {
                         const locationLabelOnly = !!loc && /^📍/.test(rawContent.trim())
                         const pollLabelOnly = !!poll && /^📊/.test(rawContent.trim())
                         const displayContent = (contactLabelOnly || locationLabelOnly || pollLabelOnly) ? '' : (isPlaceholder ? extraText : rawContent)
-                        const hasOnlyMedia = media && !displayContent
+                        const hasOnlyMedia = (media || wantsMedia) && !displayContent
                         // Só um contato/localização/enquete compartilhado (sem texto/mídia) → bolha "nua"
                         const contactOnly = cards.length > 0 && !displayContent && !media
                         const locationOnly = !!loc && !displayContent && !media && cards.length === 0
@@ -3395,7 +3417,7 @@ export default function CompanyConversations() {
                               // O quoted_text às vezes vem como "*Andrielly:*\nteste" — separa autor + texto.
                               let origText
                               if (orig) {
-                                origText = (orig.content || '').replace(/^\*[^*]+\*:\n?/, '').trim() || (orig.base64 ? '📎 Mídia' : '')
+                                origText = (orig.content || '').replace(/^\*[^*]+\*:\n?/, '').trim() || ((orig.base64 || orig.temMidia) ? '📎 Mídia' : '')
                               } else {
                                 const raw = (msg.quoted_text || '').trim()
                                 // quoted_text vem "*Andrielly:*\nteste" (: dentro) ou "*Andrielly*:\n..." (: fora)
@@ -3466,35 +3488,12 @@ export default function CompanyConversations() {
                               }
                               return null
                             })()}
-                            {isImage && !msg.base64 && (
-                              <div style={{
-                                display: 'inline-flex', alignItems: 'center', gap: 5,
-                                fontSize: 11, fontWeight: 600, color: '#6B7280',
-                                background: '#F3F4F6', border: '1px solid #E5E7EB',
-                                borderRadius: 6, padding: '2px 8px', marginBottom: 6,
-                              }}>🖼️ Imagem enviada</div>
-                            )}
-                            {fileLine?.startsWith('🎬') && !media && (
-                              <div style={{
-                                display: 'inline-flex', alignItems: 'center', gap: 10,
-                                background: '#F5F3FF', border: '1px solid #DDD6FE',
-                                borderRadius: 8, padding: '10px 14px', marginBottom: extraText ? 6 : 0,
-                                minWidth: 200,
-                              }}>
-                                <div style={{
-                                  width: 36, height: 36, borderRadius: 6, background: '#EDE9FE',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  color: '#7C3AED', flexShrink: 0,
-                                }}>
-                                  <Film size={18} />
-                                </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {fileLine.replace(/^🎬\s*/, '')}
-                                  </div>
-                                  <div style={{ fontSize: 11, color: '#6B7280' }}>Vídeo enviado</div>
-                                </div>
-                              </div>
+                            {wantsMedia && (
+                              <LazyMedia
+                                id={msg.id}
+                                kind={lazyKind || 'image'}
+                                onLoaded={(b64) => setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, base64: b64 } : m))}
+                              />
                             )}
                             {/* Cartão de contato compartilhado (vCard) */}
                             {cards.map((cc, ci) => (
@@ -3675,7 +3674,7 @@ export default function CompanyConversations() {
                                   wordBreak: 'break-all',
                                 })}
                               </span>
-                            ) : (!media && !fileLine && cards.length === 0 && !loc && !poll && !msg.apagada) ? (
+                            ) : (!media && !wantsMedia && !fileLine && cards.length === 0 && !loc && !poll && !msg.apagada) ? (
                               // Mensagem sem texto, sem mídia reconhecida e sem nenhum outro tipo de
                               // conteúdo — a bolha ficava um retângulo colorido vazio, sem explicação
                               // (isso é o que o usuário via como "não salvou"/"não aparece"). Na
@@ -3690,7 +3689,7 @@ export default function CompanyConversations() {
                                 caso real do PDF que não aparece: o branch acima não cobria porque
                                 exige !fileLine, e aqui fileLine existe. Fica como aviso à parte,
                                 independente do texto, igual os avisos de apagada/não entregue abaixo. */}
-                            {!media && fileLine && cards.length === 0 && !loc && !poll && !msg.apagada && (
+                            {!media && !wantsMedia && fileLine && cards.length === 0 && !loc && !poll && !msg.apagada && (
                               <div style={{ fontSize: 11.5, fontWeight: 600, marginTop: displayContent ? 6 : 0, display: 'flex', alignItems: 'center', gap: 4, color: isAtendente ? 'rgba(255,255,255,0.85)' : '#DC2626' }}>
                                 <AlertCircle size={11} /> {fileLine} — não pôde ser carregado
                               </div>
@@ -4136,7 +4135,7 @@ export default function CompanyConversations() {
                 <button onClick={() => { copyMessageText(m); setMsgMenu(null) }} style={itemStyle} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
                   <Copy size={13} /> Copiar
                 </button>
-                {mIsAtendente && !m.base64 && (
+                {mIsAtendente && !m.base64 && !m.temMidia && (
                   <button
                     onClick={() => { setEditingMsgId(m.id); setEditingText(m.content || ''); setMsgMenu(null) }}
                     style={itemStyle} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
