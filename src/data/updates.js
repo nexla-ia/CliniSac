@@ -4,6 +4,37 @@
 
 export const UPDATES = [
   {
+    date: '2026-11-16',
+    title: 'Conversas mais rápidas, recebimento parcial e conversão no CRM',
+    type: 'feature',
+    tags: ['Conversas', 'Grupos', 'Financeiro', 'CRM', 'Agenda', 'Métricas'],
+    popup: true,
+    intro: 'Juntamos uma leva grande de melhorias: conversas que abrem na hora, recebimento parcial no financeiro, um funil que mostra quem fechou e relatórios dentro de cada tela.',
+    highlights: [
+      { icon: '⚡', title: 'Conversas mais rápidas', text: 'A conversa que vocês já abriram reabre na hora, e fotos e vídeos só carregam quando aparecem na tela.' },
+      { icon: '🖼️', title: 'Várias imagens de uma vez', text: 'Selecionem até 10 arquivos no clipe, nas conversas e nos grupos. A legenda vai na última imagem.' },
+      { icon: '💰', title: 'Recebimento parcial', text: 'Recebeu parte em dinheiro e parte no pix? Registrem as duas formas na mesma baixa. Se faltar algo, o lançamento fica como parcial até quitar.' },
+      { icon: '🎯', title: 'Conversão no CRM', text: 'Marquem a etapa que significa "fechou" e a de "não convertido". Ao mover um lead para não convertido, a plataforma pergunta o motivo.' },
+      { icon: '📊', title: 'Relatórios no lugar certo', text: 'Os relatórios do CRM, do Financeiro e do Kanban agora ficam dentro de cada tela, e a exportação deixa escolher as seções.' },
+    ],
+    items: [
+      'Conversas: a conversa já aberta reabre na hora e começa a carregar quando vocês param o mouse em cima dela. Fotos, vídeos e áudios só baixam quando aparecem na tela.',
+      'Conversas e grupos: dá pra selecionar várias imagens de uma vez (até 10). Cada uma vai como uma mensagem, a legenda na última e a resposta citada na primeira.',
+      'Arquivos do Word, Excel e PowerPoint agora aparecem como cartão com botão de baixar, nas conversas e nos grupos.',
+      'Grupos: mensagem que o WhatsApp não confirmou fica marcada com "Não enviada · Reenviar". O reenvio usa a mesma mensagem, sem duplicar no chat. E o campo de digitar é limpo ao trocar de grupo.',
+      'Envio mais confiável: a resposta vai pro número que o paciente realmente usa no WhatsApp (resolve o "não entregue" do nono dígito), e números de outros países não ganham mais o 55 na frente.',
+      'Anexos de até 25 MB nas conversas e nos grupos (antes eram 10 MB).',
+      'Agenda: botões Dia, Semana e Mês. Na hora de excluir um agendamento recorrente, a nova opção "este e os próximos" mantém os anteriores.',
+      'CRM: filtro e busca por etiqueta no board, escolha do funil ao enviar um contato pra etapa pelas Conversas, e o lead não volta mais pra uma etapa anterior. O card mostra há quantos dias o lead chegou.',
+      'CRM: etapas de conversão e de não convertido, com motivos que vocês mesmos cadastram. Lead novo que recebe resposta da clínica avança sozinho pra próxima etapa.',
+      'CRM: o mesmo número com e sem o nono dígito não vira mais dois leads.',
+      'Financeiro: várias formas de recebimento na mesma baixa, recebimento parcial (individual e no "Receber tudo"), desconto e tarifa no grupo, e filtro por conta bancária.',
+      'Financeiro: cada procedimento do Catálogo pode ter a sua categoria, e a cobrança gerada pela agenda já cai nela.',
+      'Métricas: pacientes novos e recorrentes, origem dos contatos, jornada e valor do paciente, pacientes atendidos e conversão do CRM. Clicando num número, abre a lista completa.',
+      'Módulos que não estão no plano de vocês aparecem no menu com cadeado e uma prévia, com um botão pra pedir a liberação ao nosso time.',
+    ],
+  },
+  {
     date: '2026-06-30',
     title: 'Apagar mensagem no chat — e vocês veem quando o paciente apaga também',
     type: 'feature',
