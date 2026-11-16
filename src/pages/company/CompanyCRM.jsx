@@ -654,9 +654,24 @@ export default function CompanyCRM() {
     if (error) { setLossReasons(snap); alert('Erro ao remover: ' + error.message) }
   }
 
+  // Lead não volta de etapa: a equipe voltava o card pra "zerar" os dias e parecer
+  // atualizado. Só pode ir pra frente — exceções: entrar/sair de etapa de NÃO
+  // convertido (perdido pode estar em qualquer posição e pode ser reativado) e
+  // voltar pra etapa de CONVERSÃO (ex.: "Não veio" → reagendou → "Agendou").
+  function isBackwardMove(contact, funnelId, toStageId) {
+    const from = stages.find(s => s.id === stageInFunnel(contact, funnelId))
+    const to   = stages.find(s => s.id === toStageId)
+    if (!from || !to || from.is_lost || to.is_lost || to.is_conversion) return false
+    return (to.posicao ?? 0) < (from.posicao ?? 0)
+  }
+
   // Grava a etapa do lead NAQUELE funil: principal → crm_contacts; adicional → a
   // linha em crm_contact_funnels. Otimista, reverte se o banco recusar.
   async function setStageInFunnel(contact, funnelId, toStageId, now = new Date().toISOString()) {
+    if (isBackwardMove(contact, funnelId, toStageId)) {
+      alert('Não é possível voltar o lead para uma etapa anterior — ele só avança no funil.')
+      return false
+    }
     if (isPrimaryFunnel(contact, funnelId)) {
       const snap = contacts
       setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, stage_id: toStageId, funil_id: funnelId, data_entrada_etapa: now } : c))
@@ -1547,6 +1562,8 @@ export default function CompanyCRM() {
                         <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:10, color: stale ? '#D97706' : C.muted }}>
                           {stale ? <AlertTriangle size={10} color="#D97706"/> : <Clock size={10}/>}
                           {days === 0 ? 'hoje' : `${days}d nesta etapa`}
+                          {/* Desde que CHEGOU no CRM — não zera ao mudar de etapa. */}
+                          {contact.created_at && <span style={{ color:C.muted }}>· chegou há {daysIn(contact.created_at)}d</span>}
                         </div>
                         {contact.data_ult_contato && (
                           <div style={{ fontSize:9.5, color:C.muted }}>
@@ -1737,7 +1754,10 @@ export default function CompanyCRM() {
                               setStageInFunnel(c, f.id, e.target.value)
                             }}
                             style={{ width:'100%', border:'none', background:'transparent', fontSize:12, fontWeight:600, color:C.slate, cursor:'pointer', outline:'none', padding:'2px 0' }}>
-                            {fStages.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                            {fStages.map(s => {
+                              const back = isBackwardMove(c, f.id, s.id)
+                              return <option key={s.id} value={s.id} disabled={back}>{s.nome}{back ? ' (etapa anterior)' : ''}</option>
+                            })}
                             {isPrim && <option value="__new__">➕ Nova etapa…</option>}
                           </select>
                         </div>
