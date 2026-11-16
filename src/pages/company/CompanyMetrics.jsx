@@ -376,7 +376,9 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
         : Promise.resolve([]),
       // ── CRM ──
       fetchAll((a, b) => supabase.from('crm_contacts').select('*').eq('instancia', instance).order('created_at', { ascending: false }).range(a, b)),
-      one(supabase.from('crm_stages').select('id,funil_id,nome,cor,posicao,alerta_dias').eq('instancia', instance).order('posicao')),
+      // '*' traz as flags is_conversion/is_lost (etapa de conversão / não convertido)
+      // quando a migration já rodou, sem quebrar quando ainda não rodou.
+      one(supabase.from('crm_stages').select('*').eq('instancia', instance).order('posicao')),
       one(supabase.from('crm_funnels').select('id,nome,posicao').eq('instancia', instance).order('posicao')),
       fetchAll((a, b) => supabase.from('crm_interactions').select('id,tipo,created_at,autor_nome').eq('instancia', instance).gte('created_at', `${yearLo}T00:00:00`).order('created_at', { ascending: false }).range(a, b)),
       one(supabase.from('contact_tags').select('id,name,color').eq('instancia', instance)),
@@ -616,7 +618,7 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
       case 'agenda':      return <AgendaTab      {...{ appts, professionals, procedures, range, period, loading, only }} />
       case 'financeiro':  return <FinanceiroTab  {...{ appts, professionals, procedures, insurancePlans, finTx, finCats, range, period, loading, only }} />
       case 'leads':       return <LeadsTab       {...{ leads, appts, msgs, range, period, loading, contactsTable, only }} />
-      case 'crm':         return <CRMTab         {...{ crmContacts, crmStages, crmFunnels, crmInteractions, crmTags, crmTagAssignments, crmTemperatures, range, period, loading, only }} />
+      case 'crm':         return <CRMTab         {...{ crmContacts, crmStages, crmFunnels, crmInteractions, crmTags, crmTagAssignments, crmTemperatures, appts, range, period, loading, only }} />
       case 'atividades':  return <AtividadesTab  {...{ kanbanCards, kanbanColumns, users, range, period, loading }} />
       case 'nps':         return <NpsTab         {...{ msgs, appts, range, period, loading }} />
       default: return null
@@ -2863,13 +2865,16 @@ function AtividadesTab({ kanbanCards, kanbanColumns, users, range, period, loadi
 }
 
 // ─── Tab: CRM ────────────────────────────────────────────────────────────────
-function CRMTab({ crmContacts, crmStages, crmFunnels, crmInteractions, crmTags, crmTagAssignments, crmTemperatures, range, period, loading, only }) {
+function CRMTab({ crmContacts, crmStages, crmFunnels, crmInteractions, crmTags, crmTagAssignments, crmTemperatures, appts, range, period, loading, only }) {
   const { from, to } = range
   const show = (id) => !only || only.has(id)
   const [funnelSel, setFunnelSel] = useState('todos')
 
   const daysInStage = ds => ds ? Math.floor((Date.now() - new Date(ds).getTime()) / 86400000) : 0
-  const isLost = s => /perdid|perda|desist/i.test(s?.nome || '')
+  // "Não convertido" = etapa marcada como is_lost (novo) OU nome sugestivo (legado).
+  const isLost = s => !!s?.is_lost || /perdid|perda|desist|n[ãa]o\s*convert/i.test(s?.nome || '')
+  // "Conversão" = etapa marcada como is_conversion no modal da etapa.
+  const isConv = s => !!s?.is_conversion
   const stageById = useMemo(() => { const m = {}; crmStages.forEach(s => m[s.id] = s); return m }, [crmStages])
   const stagesForFunnel = fid => crmStages.filter(s => s.funil_id === fid).sort((a, b) => (a.posicao ?? 0) - (b.posicao ?? 0))
 
@@ -2887,16 +2892,48 @@ function CRMTab({ crmContacts, crmStages, crmFunnels, crmInteractions, crmTags, 
   const mornos   = scopeLeads.filter(c => c.temperatura === 'morno').length
   const frios    = scopeLeads.filter(c => c.temperatura === 'frio' || !c.temperatura).length
   const parados  = scopeLeads.filter(c => { const s = stageById[c.stage_id]; return s?.alerta_dias && daysInStage(c.data_entrada_etapa) > s.alerta_dias }).length
-  const perdidos = scopeLeads.filter(c => c.motivo_perda || isLost(stageById[c.stage_id])).length
 
-  const lastStageByFunnel = useMemo(() => {
-    const m = {}
-    crmFunnels.forEach(f => { const fw = stagesForFunnel(f.id).filter(s => !isLost(s)); m[f.id] = fw[fw.length - 1]?.id })
-    return m
-  }, [crmFunnels, crmStages])
-  const convertidos = scopeLeads.filter(c => c.stage_id && c.stage_id === lastStageByFunnel[c.funil_id]).length
-  const taxaConv = total ? (convertidos / total * 100) : 0
-  const emAndamento = Math.max(0, total - convertidos - perdidos)
+  // Conversão / Não convertido contam quem foi MOVIDO pras etapas com essas funções
+  // ativas (is_conversion / is_lost), pelo momento em que caiu na etapa
+  // (data_entrada_etapa) — não pela data de criação. Assim mover um lead antigo pra
+  // uma etapa de conversão nesta semana conta nesta semana.
+  const hasDecisionStage = useMemo(() => crmStages.some(s => isConv(s) || isLost(s)), [crmStages])
+  const funnelBase = useMemo(
+    () => (funnelSel === 'todos' ? crmContacts : crmContacts.filter(c => c.funil_id === funnelSel)),
+    [crmContacts, funnelSel]
+  )
+  const movedInPeriod = c => (!from && !to) || inPeriod(c.data_entrada_etapa || c.created_at, from, to)
+  const decision = useMemo(() => {
+    let conv = 0, lost = 0
+    funnelBase.forEach(c => {
+      const s = stageById[c.stage_id]
+      if (!s || !movedInPeriod(c)) return
+      if (isConv(s)) conv++
+      else if (isLost(s)) lost++
+    })
+    return { conv, lost }
+  }, [funnelBase, stageById, from, to])
+  const convertidos = decision.conv
+  const perdidos = decision.lost          // "Não convertidos"
+  const decididos = convertidos + perdidos
+  // Taxa = dos leads que chegaram a uma decisão (convertido/não), quantos converteram.
+  const taxaConv = decididos ? (convertidos / decididos * 100) : 0
+  // Em andamento: leads do período que ainda não caíram numa etapa de decisão.
+  const emAndamento = scopeLeads.filter(c => { const s = stageById[c.stage_id]; return !isConv(s) && !isLost(s) }).length
+
+  // Conversão pra AGENDA: leads (do escopo) cujo telefone casa com algum
+  // agendamento (appointments.contact_numero), normalizando (55 + sem o 9).
+  const agendaram = useMemo(() => {
+    const norm = p => {
+      let d = (p || '').replace(/@.*/, '').replace(/\D/g, '')
+      if (d.length === 10 || d.length === 11) d = '55' + d
+      if (d.length === 13 && d.startsWith('55') && d[4] === '9') d = '55' + d.slice(2, 4) + d.slice(5)
+      return d
+    }
+    const apptPhones = new Set((appts || []).filter(a => a.status !== 'cancelado').map(a => norm(a.contact_numero)).filter(Boolean))
+    return scopeLeads.filter(c => { const k = norm(c.phone); return k && apptPhones.has(k) }).length
+  }, [appts, scopeLeads])
+  const taxaAgenda = total ? (agendaram / total * 100) : 0
 
   const funnelsToShow = funnelSel === 'todos' ? crmFunnels : crmFunnels.filter(f => f.id === funnelSel)
   const funnelViz = useMemo(() => funnelsToShow.map(f => {
@@ -2953,8 +2990,10 @@ function CRMTab({ crmContacts, crmStages, crmFunnels, crmInteractions, crmTags, 
   , [scopeLeads, stageById])
 
   const motivos = useMemo(() => {
+    // Prettifica slug novo ("sem_interesse" → "Sem interesse"); mantém rótulo antigo.
+    const pretty = v => /\s/.test(v) ? v : v.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())
     const m = {}
-    scopeLeads.filter(c => c.motivo_perda && c.motivo_perda.trim()).forEach(c => { const k = c.motivo_perda.trim(); m[k] = (m[k] || 0) + 1 })
+    scopeLeads.filter(c => c.motivo_perda && c.motivo_perda.trim()).forEach(c => { const k = pretty(c.motivo_perda.trim()); m[k] = (m[k] || 0) + 1 })
     return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6)
   }, [scopeLeads])
 
@@ -3015,9 +3054,10 @@ function CRMTab({ crmContacts, crmStages, crmFunnels, crmInteractions, crmTags, 
         <KpiCard icon={<Users size={18} color="#2563EB" />} bg="#EFF6FF" value={total} label="Leads no período" sub={periodLabel(period)} loading={loading} />
         <KpiCard icon={<TrendingUp size={18} color="#7C3AED" />} bg="#F5F3FF" value={emAndamento} label="Em andamento" sub="ativos no funil" loading={loading} />
         <KpiCard icon={<span style={{ fontSize: 16 }}>🔥</span>} bg="#FEF2F2" value={quentes} label="Leads quentes" sub={`${total ? Math.round(quentes / total * 100) : 0}% do total`} loading={loading} alert={quentes > 0} />
-        <KpiCard icon={<Target size={18} color="#16A34A" />} bg="#F0FDF4" value={`${taxaConv.toFixed(0)}%`} label="Taxa de conversão" sub={`${convertidos} chegaram ao fim`} loading={loading} />
+        <KpiCard icon={<Target size={18} color="#16A34A" />} bg="#F0FDF4" value={`${taxaConv.toFixed(0)}%`} label="Taxa de conversão" sub={hasDecisionStage ? `${convertidos} de ${decididos} decididos convertidos` : 'marque a etapa de conversão'} loading={loading} />
+        <KpiCard icon={<span style={{ fontSize: 16 }}>📅</span>} bg="#EFF6FF" value={agendaram} label="Agendaram" sub={`${taxaAgenda.toFixed(0)}% dos leads marcaram na agenda`} loading={loading} />
         <KpiCard icon={<AlertCircle size={18} color="#D97706" />} bg="#FFFBEB" value={parados} label="Leads parados" sub="além do prazo da etapa" loading={loading} alert={parados > 0} />
-        <KpiCard icon={<XCircle size={18} color="#DC2626" />} bg="#FEF2F2" value={perdidos} label="Leads perdidos" sub={`${total ? Math.round(perdidos / total * 100) : 0}% do total`} loading={loading} />
+        <KpiCard icon={<XCircle size={18} color="#DC2626" />} bg="#FEF2F2" value={perdidos} label="Não convertidos" sub={hasDecisionStage ? `movidos p/ etapa de não-convertido` : 'marque a etapa de não convertido'} loading={loading} />
       </div>
       )}
 
