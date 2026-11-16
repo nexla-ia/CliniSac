@@ -202,6 +202,25 @@ const TABS = [
   { key: 'nps',         label: 'NPS',          icon: Star },
 ]
 
+// Relatórios que moraram aqui e agora ficam na PRÓPRIA tela (CRM, Financeiro,
+// Kanban → botão "Relatório" lá). A Métricas da clínica não mostra mais essas abas;
+// o ADM (companyOverride) continua vendo tudo.
+const TABS_IN_OWN_SCREEN = ['financeiro', 'crm', 'atividades']
+
+// Dados que cada aba usa — com `tabs` (relatório embutido numa tela) só carrega o
+// necessário (ex.: o relatório do CRM não precisa baixar todas as mensagens).
+const DATA_NEEDS = {
+  overview:    ['msgs', 'convs', 'atts', 'appts', 'alerts', 'kanbanCards', 'leads', 'procedures', 'insurancePlans'],
+  atendimento: ['msgs', 'convs', 'atts'],
+  equipe:      ['msgs', 'convs', 'atts', 'users', 'sectors', 'sectorMembers'],
+  agenda:      ['appts', 'professionals', 'procedures'],
+  financeiro:  ['appts', 'professionals', 'procedures', 'insurancePlans', 'finTx', 'finCats'],
+  leads:       ['leads', 'appts', 'msgs', 'convs'],
+  crm:         ['crm', 'appts'],
+  atividades:  ['kanbanCards', 'kanbanColumns', 'users'],
+  nps:         ['msgs', 'appts'],
+}
+
 // Seções lógicas por aba, pro export granular. Abas sem entrada aqui entram
 // inteiras (sem sub-seleção). Cada aba usa `only` (Set de ids) pra renderizar só
 // as seções escolhidas. Vou preenchendo aba por aba conforme guardo as seções.
@@ -272,7 +291,9 @@ function fmtMoney(v) {
 // Props opcionais (usadas pelo ADM Análise 360°):
 //   companyOverride: substitui session.company (pra ver métricas de outra empresa)
 //   hideHeader: esconde o título 'Métricas' + botão Atualizar
-export default function CompanyMetrics({ companyOverride = null, hideHeader = false } = {}) {
+//   tabs: mostra SÓ essas abas (relatório embutido na tela do CRM/Financeiro/Kanban)
+//   title: título do cabeçalho (padrão 'Métricas')
+export default function CompanyMetrics({ companyOverride = null, hideHeader = false, tabs = null, title = 'Métricas' } = {}) {
   const { session } = useAuth()
   const company = companyOverride || session?.company
   const instance      = company?.instance
@@ -290,7 +311,10 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
   const [pickMonth, setPickMonth]     = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}` })
   const [pickFrom, setPickFrom]       = useState('')
   const [pickTo, setPickTo]           = useState('')
-  const [tab, setTab]         = useState('overview')
+  // Abas desta instância da tela.
+  const allowedKeys = tabs || TABS.map(t => t.key).filter(k => companyOverride || !TABS_IN_OWN_SCREEN.includes(k))
+  const visibleTabs = TABS.filter(t => allowedKeys.includes(t.key))
+  const [tab, setTab]         = useState(() => visibleTabs[0]?.key || 'overview')
   const [loading, setLoading] = useState(false)
   const [lastRefresh, setLastRefresh] = useState(null)
   const [limitModal, setLimitModal] = useState(null)
@@ -348,6 +372,10 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
     }
     const one = (q) => q.then(r => r.data || [])
 
+    // Só baixa o que as abas visíveis usam.
+    const needSet = new Set(allowedKeys.flatMap(k => DATA_NEEDS[k] || []))
+    const want = (k, run) => needSet.has(k) ? run() : Promise.resolve([])
+
     const yearLo = `${new Date().getFullYear() - 1}-01-01`
     const yearHi = `${new Date().getFullYear() + 1}-12-31`
 
@@ -359,34 +387,36 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
       crmContactsData, crmStagesData, crmFunnelsData, crmInteractionsData,
       crmTagsData, crmTagAssignsData, crmTempsData,
     ] = await Promise.all([
-      fetchAll((a, b) => supabase.from('mensagens_geral').select('id, numero, type, mensagem, "horaLastMessage", created_at, poll_kind, poll_name, poll_options, poll_votes, poll_appointment_id').eq('instancia', instance).order('id', { ascending: false }).range(a, b)),
-      fetchAll((a, b) => supabase.from('conversations').select('session_id, reason, closed_at').eq('instancia', instance).range(a, b)),
-      fetchAll((a, b) => supabase.from('attendances').select('numero, sector_id, sector_name, sector_color, attendant_name, attendant_email, assumed_at').eq('instancia', instance).range(a, b)),
-      fetchAll((a, b) => supabase.from('appointments').select('*, agendas(name, color)').eq('instancia', instance).order('starts_at', { ascending: false }).range(a, b)),
-      fetchAll((a, b) => supabase.from('alerts').select('*').eq('instancia', instance).range(a, b)),
-      fetchAll((a, b) => supabase.from('kanban_cards').select('*').eq('instancia', instance).range(a, b)),
-      one(supabase.from('kanban_columns').select('*').eq('instancia', instance).order('position')),
-      one(supabase.from('users').select('id, name, email, role, active').eq('company_id', companyId)),
-      one(supabase.from('sectors').select('*').eq('instancia', instance)),
-      fetchAll((a, b) => supabase.from('sector_members').select('user_id, sector_id').range(a, b)),
-      one(supabase.from('professionals').select('*').eq('instancia', instance)),
-      one(supabase.from('procedures').select('*').eq('instancia', instance)),
-      one(supabase.from('insurance_plans').select('*').eq('instancia', instance)),
-      fetchAll((a, b) => supabase.from('financial_transactions').select('id,tipo,valor,status,categoria_id,vencimento,descricao,contact_nome,forma_pagamento').eq('instancia', instance).gte('vencimento', yearLo).lte('vencimento', yearHi).range(a, b)),
-      one(supabase.from('financial_categories').select('id,nome,tipo,cor').in('instancia', [instance, '_default_'])),
-      contactsTable
+      want('msgs', () => fetchAll((a, b) => supabase.from('mensagens_geral').select('id, numero, type, mensagem, "horaLastMessage", created_at, poll_kind, poll_name, poll_options, poll_votes, poll_appointment_id').eq('instancia', instance).order('id', { ascending: false }).range(a, b))),
+      want('convs', () => fetchAll((a, b) => supabase.from('conversations').select('session_id, reason, closed_at').eq('instancia', instance).range(a, b))),
+      want('atts', () => fetchAll((a, b) => supabase.from('attendances').select('numero, sector_id, sector_name, sector_color, attendant_name, attendant_email, assumed_at').eq('instancia', instance).range(a, b))),
+      want('appts', () => fetchAll((a, b) => supabase.from('appointments').select('*, agendas(name, color)').eq('instancia', instance).order('starts_at', { ascending: false }).range(a, b))),
+      want('alerts', () => fetchAll((a, b) => supabase.from('alerts').select('*').eq('instancia', instance).range(a, b))),
+      want('kanbanCards', () => fetchAll((a, b) => supabase.from('kanban_cards').select('*').eq('instancia', instance).range(a, b))),
+      want('kanbanColumns', () => one(supabase.from('kanban_columns').select('*').eq('instancia', instance).order('position'))),
+      want('users', () => one(supabase.from('users').select('id, name, email, role, active').eq('company_id', companyId))),
+      want('sectors', () => one(supabase.from('sectors').select('*').eq('instancia', instance))),
+      want('sectorMembers', () => fetchAll((a, b) => supabase.from('sector_members').select('user_id, sector_id').range(a, b))),
+      want('professionals', () => one(supabase.from('professionals').select('*').eq('instancia', instance))),
+      want('procedures', () => one(supabase.from('procedures').select('*').eq('instancia', instance))),
+      want('insurancePlans', () => one(supabase.from('insurance_plans').select('*').eq('instancia', instance))),
+      // '*' traz valor_pago (recebimento parcial) quando a migration já rodou, sem
+      // quebrar quando ainda não rodou.
+      want('finTx', () => fetchAll((a, b) => supabase.from('financial_transactions').select('*').eq('instancia', instance).gte('vencimento', yearLo).lte('vencimento', yearHi).range(a, b))),
+      want('finCats', () => one(supabase.from('financial_categories').select('id,nome,tipo,cor').in('instancia', [instance, '_default_']))),
+      want('leads', () => contactsTable
         ? fetchAll((a, b) => supabase.from(contactsTable).select('*').eq('instancia', instance).range(a, b))
-        : Promise.resolve([]),
+        : Promise.resolve([])),
       // ── CRM ──
-      fetchAll((a, b) => supabase.from('crm_contacts').select('*').eq('instancia', instance).order('created_at', { ascending: false }).range(a, b)),
+      want('crm', () => fetchAll((a, b) => supabase.from('crm_contacts').select('*').eq('instancia', instance).order('created_at', { ascending: false }).range(a, b))),
       // '*' traz as flags is_conversion/is_lost (etapa de conversão / não convertido)
       // quando a migration já rodou, sem quebrar quando ainda não rodou.
-      one(supabase.from('crm_stages').select('*').eq('instancia', instance).order('posicao')),
-      one(supabase.from('crm_funnels').select('id,nome,posicao').eq('instancia', instance).order('posicao')),
-      fetchAll((a, b) => supabase.from('crm_interactions').select('id,tipo,created_at,autor_nome').eq('instancia', instance).gte('created_at', `${yearLo}T00:00:00`).order('created_at', { ascending: false }).range(a, b)),
-      one(supabase.from('contact_tags').select('id,name,color').eq('instancia', instance)),
-      fetchAll((a, b) => supabase.from('contact_tag_assignments').select('tag_id,numero').eq('instancia', instance).range(a, b)),
-      one(supabase.from('crm_temperatures').select('id,nome,cor').eq('instancia', instance)),
+      want('crm', () => one(supabase.from('crm_stages').select('*').eq('instancia', instance).order('posicao'))),
+      want('crm', () => one(supabase.from('crm_funnels').select('id,nome,posicao').eq('instancia', instance).order('posicao'))),
+      want('crm', () => fetchAll((a, b) => supabase.from('crm_interactions').select('id,tipo,created_at,autor_nome').eq('instancia', instance).gte('created_at', `${yearLo}T00:00:00`).order('created_at', { ascending: false }).range(a, b))),
+      want('crm', () => one(supabase.from('contact_tags').select('id,name,color').eq('instancia', instance))),
+      want('crm', () => fetchAll((a, b) => supabase.from('contact_tag_assignments').select('tag_id,numero').eq('instancia', instance).range(a, b))),
+      want('crm', () => one(supabase.from('crm_temperatures').select('id,nome,cor').eq('instancia', instance))),
     ])
 
     setMsgs(msgsData)
@@ -487,7 +517,7 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
     }
   }
 
-  useEffect(() => { load() }, [instance, companyId, contactsTable])
+  useEffect(() => { load() }, [instance, companyId, contactsTable, allowedKeys.join(',')])
 
   // Métricas só carregava uma vez (ao abrir/trocar de empresa) — uma resposta
   // nova de enquete (NPS), agendamento concluído etc. só aparecia depois de
@@ -554,7 +584,7 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
   }
 
   // ── Exportar relatório: escolher quais telas E seções entram no PDF ────────
-  const exportTabs = TABS.filter(t =>
+  const exportTabs = visibleTabs.filter(t =>
     (aiEnabled || t.key !== 'leads' || contactsTable) &&
     !(!advancedAllowed && ADVANCED_TABS.includes(t.key))
   )
@@ -652,7 +682,7 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
       {!hideHeader && !printKeys.length && (
         <div className="metrics-print-only" style={{ marginBottom: 18, borderBottom: '2px solid #0F172A', paddingBottom: 10 }}>
           <div style={{ fontSize: 19, fontWeight: 800, color: '#0F172A' }}>
-            Relatório de Métricas — {TABS.find(t => t.key === tab)?.label || ''}
+            Relatório de {title} — {TABS.find(t => t.key === tab)?.label || ''}
           </div>
           <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>
             {company?.name ? `${company.name} · ` : ''}Período: {periodLabel(period)} · Gerado em {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -664,7 +694,7 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
       {!hideHeader && (
         <div className="metrics-no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>Métricas</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>{title}</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
               {lastRefresh ? `Atualizado às ${lastRefresh.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : 'Carregando...'}
             </div>
@@ -754,9 +784,10 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs (com 1 aba só — relatório embutido — não precisa da barra) */}
+      {visibleTabs.length > 1 && (
       <div className="metrics-no-print" style={{ display: 'flex', gap: 4, marginBottom: 18, borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-        {TABS.filter(t => aiEnabled || t.key !== 'leads' || contactsTable).map(t => {
+        {visibleTabs.filter(t => aiEnabled || t.key !== 'leads' || contactsTable).map(t => {
           const locked = !advancedAllowed && ADVANCED_TABS.includes(t.key)
           return (
             <button key={t.key} onClick={() => {
@@ -780,6 +811,7 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
           )
         })}
       </div>
+      )}
 
       {printKeys.length > 0 ? (
         printKeys.map(item => {
@@ -796,6 +828,12 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
             </div>
           )
         })
+      ) : (!advancedAllowed && ADVANCED_TABS.includes(tab)) ? (
+        <div className="nx-card" style={{ padding: '2.5rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+          <Lock size={20} style={{ marginBottom: 8 }} />
+          <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Relatório disponível a partir do plano Pro</div>
+          <button className="nx-btn-primary" style={{ fontSize: 12.5, marginTop: 8 }} onClick={() => setLimitModal(upgradeMessage('advanced_metrics', null, limits.plan))}>Ver planos</button>
+        </div>
       ) : (
         renderTab(tab)
       )}
@@ -2367,19 +2405,23 @@ function FinanceiroTab({ appts, professionals, procedures, insurancePlans, finTx
           return v >= (from ? ymdLocal(from) : '0') && v <= (to ? ymdLocal(to) : '9')
         })
 
-        const recPagas  = txPeriod.filter(t => t.tipo==='receita' && t.status==='pago').reduce((s,t)=>s+parseFloat(t.valor||0),0)
-        const despPagas = txPeriod.filter(t => t.tipo==='despesa' && t.status==='pago').reduce((s,t)=>s+parseFloat(t.valor||0),0)
-        const recPend   = txPeriod.filter(t => t.tipo==='receita' && t.status==='pendente').reduce((s,t)=>s+parseFloat(t.valor||0),0)
-        const despPend  = txPeriod.filter(t => t.tipo==='despesa' && t.status==='pendente').reduce((s,t)=>s+parseFloat(t.valor||0),0)
+        // Recebimento parcial: o que já entrou conta como pago e o restante como
+        // pendente (valor_pago guarda a soma recebida).
+        const pagoDe = t => t.status==='pago' ? parseFloat(t.valor||0) : t.status==='parcial' ? parseFloat(t.valor_pago||0) : 0
+        const pendDe = t => t.status==='pendente' ? parseFloat(t.valor||0) : t.status==='parcial' ? Math.max(0, parseFloat(t.valor||0) - parseFloat(t.valor_pago||0)) : 0
+        const recPagas  = txPeriod.filter(t => t.tipo==='receita').reduce((s,t)=>s+pagoDe(t),0)
+        const despPagas = txPeriod.filter(t => t.tipo==='despesa').reduce((s,t)=>s+pagoDe(t),0)
+        const recPend   = txPeriod.filter(t => t.tipo==='receita').reduce((s,t)=>s+pendDe(t),0)
+        const despPend  = txPeriod.filter(t => t.tipo==='despesa').reduce((s,t)=>s+pendDe(t),0)
         const saldo     = recPagas - despPagas
-        const inadimpl  = finTx.filter(t => t.tipo==='receita' && t.status==='pendente' && (t.vencimento||'') < todayStr).reduce((s,t)=>s+parseFloat(t.valor||0),0)
+        const inadimpl  = finTx.filter(t => t.tipo==='receita' && (t.vencimento||'') < todayStr).reduce((s,t)=>s+pendDe(t),0)
 
         // Últimos 6 meses (financial_transactions)
         const months6 = Array.from({length:6},(_,i)=>{
           const m = addMonthsFin(cm, i-5)
           const tx = finTx.filter(t => (t.vencimento||'').startsWith(m) && t.status!=='cancelado')
           let rec=0,desp=0,recR=0,despR=0
-          tx.forEach(t=>{const v=parseFloat(t.valor||0);if(t.tipo==='receita'){rec+=v;if(t.status==='pago')recR+=v}else{desp+=v;if(t.status==='pago')despR+=v}})
+          tx.forEach(t=>{const v=parseFloat(t.valor||0);if(t.tipo==='receita'){rec+=v;recR+=pagoDe(t)}else{desp+=v;despR+=pagoDe(t)}})
           return {month: monthLblFin(m), rec, desp, recR, despR, saldo:recR-despR, isCurrent: m===cm}
         })
         const hasMonthData = months6.some(m=>m.rec>0||m.desp>0)
