@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { fetchConversaContatos } from '../../lib/queries'
 import { detectSendError, isN8nInfraNoise } from '../../lib/sendStatus'
+import { normalizePhoneDigits, isForeign11 } from '../../lib/phoneBR'
 import { MessageSquare, Bot, User, PhoneCall, CheckCircle2, X, Send, Headset, Sparkles, Inbox, UserCheck, Archive, Mic, Square, Trash2, Paperclip, FileText, Image as ImageIcon, Calendar, UserPlus, BookUser, Lock, ArrowRightLeft, ChevronLeft, Pencil, Film, Mail, MailOpen, AlertCircle, Plus, Reply, Search, MapPin, ExternalLink, LocateFixed, Kanban, Check, CheckCheck, MoreHorizontal, ChevronRight, BarChart3, Copy } from 'lucide-react'
 import { useContactTags, TagPicker, TagList, TagFilter, stripPhoneSuffix, buildTagFilter } from '../../components/Tags'
 import QuickMessages from '../../components/QuickMessages'
@@ -178,12 +179,12 @@ function tzOffsetMinutes(tz) {
 // duas: as respostas do cliente numa thread e o que o atendente enviava na
 // outra — cada usuário via só metade. Canonicalizamos tudo pro MESMO formato
 // (sem o 9) pra juntar as duas e casar com o que o WhatsApp entrega.
+// Número ESTRANGEIRO (EUA 1+10, Bolívia 591+8, Bélgica 32+9...) também tem 11
+// dígitos — antes ganhava "55" na frente e a conversa abria vazia (as mensagens
+// estão no número real). Celular BR de 11 díg é DDD + 9 + 8, então só tratamos
+// como BR se o 3º dígito for 9 (regra em lib/phoneBR).
 function normalizeBRDigits(raw) {
-  let d = (raw || '').replace(/@.*/, '').replace(/\D/g, '')
-  if (!d) return ''
-  if (d.length === 11 || d.length === 10) d = '55' + d
-  if (d.length === 13 && d.startsWith('55') && d[4] === '9') d = '55' + d.slice(2, 4) + d.slice(5)
-  return d
+  return normalizePhoneDigits(raw)
 }
 function canonSession(numero) {
   if (!numero) return numero
@@ -203,6 +204,8 @@ function numeroVariants(numero) {
       const with9 = '55' + d.slice(2, 4) + '9' + d.slice(4)  // reinsere o 9 extra
       out.add(with9); out.add(`${with9}@s.whatsapp.net`)
     }
+    // estrangeiro: inclui a forma antiga com "55" na frente (mensagens já gravadas assim)
+    if (isForeign11(d)) { out.add('55' + d); out.add(`55${d}@s.whatsapp.net`) }
   }
   return [...out]
 }
