@@ -154,8 +154,11 @@ BEGIN
        CASE WHEN v_status = 'pago' THEN COALESCE(NEW.paid_at::date, CURRENT_DATE) ELSE NULL END,
        NEW.contact_nome, NEW.id, 'Agenda (automático)');
   ELSE
+    -- Recebimento parcial (feito no Financeiro) não volta pra "pendente" só
+    -- porque o agendamento foi editado.
     UPDATE financial_transactions
-       SET valor = NEW.price, status = v_status,
+       SET valor = NEW.price,
+           status = CASE WHEN v_status = 'pendente' AND status = 'parcial' THEN 'parcial' ELSE v_status END,
            pagamento_at = CASE WHEN v_status = 'pago' THEN COALESCE(pagamento_at, NEW.paid_at::date, CURRENT_DATE) ELSE pagamento_at END
      WHERE id = v_existing;
   END IF;
