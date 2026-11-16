@@ -1289,6 +1289,9 @@ export default function CompanyConversations() {
                 poll_votes: row.poll_votes || null, poll_options: row.poll_options || m.poll_options,
                 delivered_at: row.delivered_at || null, read_at: row.read_at || null,
                 send_error_at: row.send_error_at || null,
+                // Chegou o id_mensagem (confirmação de entrega, mesmo atrasada) →
+                // limpa "entrega não confirmada"/"não entregue".
+                ...(row.id_mensagem ? { id_mensagem: row.id_mensagem, falhou: false, incerto: false } : {}),
               }
             : m))
         }
@@ -2110,7 +2113,7 @@ export default function CompanyConversations() {
       // de falha (null = sucesso).
       const postOnce = async (sidJid) => {
         const ctrl = new AbortController()
-        const timer = setTimeout(() => ctrl.abort(), 20000)
+        const timer = setTimeout(() => ctrl.abort(), 45000)
         try {
           const r = await fetch(webhookUrl, {
             method: 'POST',
