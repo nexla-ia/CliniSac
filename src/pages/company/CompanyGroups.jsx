@@ -332,11 +332,11 @@ export default function CompanyGroups() {
   const [hasMoreMsgs, setHasMoreMsgs] = useState(false)
   const [loadingMoreMsgs, setLoadingMoreMsgs] = useState(false)
   // Colunas do thread: começa em '*' (seguro) e vira o modo leve (sem base64) só
-  // depois de confirmar que a coluna tem_midia existe — pra ordem de deploy não quebrar.
+  // depois de confirmar que todas as colunas da lista existem (pra migration faltando não quebrar).
   const [msgCols, setMsgCols] = useState('*')
   useEffect(() => {
     let active = true
-    supabase.from(CONV_TABLE).select('tem_midia').limit(1).then(({ error }) => {
+    supabase.from(CONV_TABLE).select(MSG_COLS).limit(1).then(({ error }) => {
       if (active && !error) setMsgCols(MSG_COLS)
     })
     return () => { active = false }

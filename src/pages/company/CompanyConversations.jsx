@@ -472,12 +472,12 @@ export default function CompanyConversations() {
   const [loadingMsgs, setLoadingMsgs] = useState(false)
   const [hasMoreMsgs, setHasMoreMsgs] = useState(false)
   const [loadingMoreMsgs, setLoadingMoreMsgs] = useState(false)
-  // Colunas do thread: '*' (seguro) até confirmar que tem_midia existe, então
+  // Colunas do thread: '*' (seguro) até confirmar que TODAS as colunas da lista existem, então
   // vira o modo leve (sem base64). Evita quebra por ordem de deploy da migration.
   const [msgCols, setMsgCols] = useState('*')
   useEffect(() => {
     let active = true
-    supabase.from(CONV_TABLE).select('tem_midia').limit(1).then(({ error }) => {
+    supabase.from(CONV_TABLE).select(MSG_COLS).limit(1).then(({ error }) => {
       if (active && !error) setMsgCols(MSG_COLS)
     })
     return () => { active = false }
