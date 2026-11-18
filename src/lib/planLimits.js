@@ -26,16 +26,17 @@ export const PLAN_DEFAULTS = {
     whatsapp_instances: 1,
     instagram_accounts: 0,
     // feature flags
-    advanced_metrics: false,    // abas Equipe / Financeiro / Leads
+    advanced_metrics: false,    // abas avançadas, histórico completo, exportação
     round_robin: false,
     hsm_templates: false,
     multi_filial_compare: false,
     ia_posts: false,
     ia_laudos: false,
     api_custom: false,
-    // Financeiro, Métricas e as automações da jornada (NPS pós-consulta e Disparo)
-    // são do Plano Completo.
-    locked_modules: ['financeiro', 'metricas', 'nps', 'disparo'],
+    // Financeiro e as automações da jornada (NPS pós-consulta e Disparo) são do
+    // Plano Completo. Métricas entra no Base só com as abas básicas, até o mês
+    // atual e sem exportar (advanced_metrics = false).
+    locked_modules: ['financeiro', 'nps', 'disparo'],
   },
   Completo: {
     label: 'Plano Completo',
@@ -161,8 +162,8 @@ export function upgradeMessage(resource, limit, planName) {
       cta: 'Falar com o time',
     },
     advanced_metrics: {
-      title: 'Métricas avançadas no Plano Completo',
-      body: 'As abas Equipe e Financeiro fazem parte do Plano Completo.',
+      title: 'Disponível no Plano Completo',
+      body: 'No Plano Completo você vê também Equipe, Leads, NPS, a jornada e o valor de cada paciente, o histórico completo (qualquer período) e pode exportar os relatórios em PDF.',
       cta: 'Falar com o time',
     },
   }

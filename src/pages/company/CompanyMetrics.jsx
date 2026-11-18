@@ -304,7 +304,10 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
   const limits        = getEffectiveLimits(company)
   // No modo ADM (companyOverride), libera todas as abas — admin vê tudo.
   const advancedAllowed = companyOverride ? true : limits.advanced_metrics
-  const ADVANCED_TABS  = ['equipe', 'financeiro']
+  // Plano Base: só Visão Geral, Atendimento e Agenda, até o mês atual, sem exportar.
+  const ADVANCED_TABS  = ['equipe', 'financeiro', 'leads', 'crm', 'atividades', 'nps']
+  const upgrade = () => setLimitModal(upgradeMessage('advanced_metrics', null, limits.plan))
+  const periodLocked = key => !advancedAllowed && (key === 'todos' || key === 'custom')
 
   const [period, setPeriod]   = useState('semana')
   const [customRange, setCustomRange] = useState(null) // { from, to } quando period === 'custom'
@@ -646,7 +649,7 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
   // Renderiza uma aba pela key, opcionalmente só com algumas seções (only = Set de ids).
   function renderTab(key, only = null) {
     switch (key) {
-      case 'overview':    return <OverviewTab    {...{ msgs, convs, atts, appts, alerts, kanbanCards, leads, procedures, insurancePlans, range, period, loading, only }} />
+      case 'overview':    return <OverviewTab    {...{ msgs, convs, atts, appts, alerts, kanbanCards, leads, procedures, insurancePlans, range, period, loading, only, advancedAllowed, onUpgrade: upgrade }} />
       case 'atendimento': return <AtendimentoTab {...{ msgs, convs, atts, range, period, loading }} />
       case 'equipe':      return <EquipeTab      {...{ msgs, convs, atts, users, sectors, sectorMembers, range, period, loading }} />
       case 'agenda':      return <AgendaTab      {...{ appts, professionals, procedures, range, period, loading, only }} />
@@ -701,12 +704,12 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button className="nx-btn-ghost" style={{ fontSize: 12 }} onClick={openExport} title="Escolher seções (telas) e gerar um relatório">
-              <Layers size={13} />
+            <button className="nx-btn-ghost" style={{ fontSize: 12 }} onClick={advancedAllowed ? openExport : upgrade} title={advancedAllowed ? 'Escolher seções (telas) e gerar um relatório' : 'Exportar faz parte do Plano Completo'}>
+              {advancedAllowed ? <Layers size={13} /> : <Lock size={13} />}
               Exportar
             </button>
-            <button className="nx-btn-ghost" style={{ fontSize: 12 }} onClick={() => window.print()} title="Gerar PDF só desta aba">
-              <Download size={13} />
+            <button className="nx-btn-ghost" style={{ fontSize: 12 }} onClick={advancedAllowed ? () => window.print() : upgrade} title={advancedAllowed ? 'Gerar PDF só desta aba' : 'Baixar PDF faz parte do Plano Completo'}>
+              {advancedAllowed ? <Download size={13} /> : <Lock size={13} />}
               Baixar PDF
             </button>
             <button className="nx-btn-ghost" style={{ fontSize: 12 }} onClick={load} disabled={loading}>
@@ -720,19 +723,23 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
       {/* Filtros de período */}
       <div className="metrics-no-print" style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
         {PERIODS.map(p => (
-          <button key={p.key} onClick={() => setPeriod(p.key)}
+          <button key={p.key} onClick={() => periodLocked(p.key) ? upgrade() : setPeriod(p.key)}
+            title={periodLocked(p.key) ? 'Histórico completo faz parte do Plano Completo' : undefined}
             style={{
+              opacity: periodLocked(p.key) ? 0.6 : 1,
+              display: 'inline-flex', alignItems: 'center', gap: 5,
               padding: '7px 18px', borderRadius: 20, fontSize: 12, fontWeight: 600,
               border: `1.5px solid ${period === p.key ? '#2563EB' : 'var(--border)'}`,
               background: period === p.key ? '#2563EB' : '#fff',
               color: period === p.key ? '#fff' : 'var(--text-secondary)',
               cursor: 'pointer', transition: 'all 0.15s',
               boxShadow: period === p.key ? '0 1px 4px rgba(37,99,235,0.3)' : 'none',
-            }}>{p.label}</button>
+            }}>{periodLocked(p.key) && <Lock size={11} />}{p.label}</button>
         ))}
         {/* Período personalizado: escolher um mês específico ou um intervalo */}
         <div style={{ position: 'relative' }}>
-          <button onClick={() => setPickerOpen(v => !v)}
+          <button onClick={() => periodLocked('custom') ? upgrade() : setPickerOpen(v => !v)}
+            title={periodLocked('custom') ? 'Escolher período faz parte do Plano Completo' : undefined}
             style={{
               padding: '7px 16px', borderRadius: 20, fontSize: 12, fontWeight: 600,
               border: `1.5px solid ${period === 'custom' ? '#2563EB' : 'var(--border)'}`,
@@ -741,7 +748,7 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
               cursor: 'pointer', transition: 'all 0.15s', display: 'inline-flex', alignItems: 'center', gap: 6,
               boxShadow: period === 'custom' ? '0 1px 4px rgba(37,99,235,0.3)' : 'none',
             }}>
-            <Calendar size={13} /> {period === 'custom' ? _customLabel : 'Escolher período'}
+            {periodLocked('custom') ? <Lock size={12} /> : <Calendar size={13} />} {period === 'custom' ? _customLabel : 'Escolher período'}
           </button>
           {pickerOpen && (
             <>
@@ -792,10 +799,7 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
           const locked = !advancedAllowed && ADVANCED_TABS.includes(t.key)
           return (
             <button key={t.key} onClick={() => {
-              if (locked) {
-                setLimitModal(upgradeMessage('advanced_metrics', null, limits.plan))
-                return
-              }
+              if (locked) { upgrade(); return }
               setTab(t.key)
             }}
               title={locked ? 'Disponível no Plano Completo' : ''}
@@ -833,7 +837,7 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
         <div className="nx-card" style={{ padding: '2.5rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
           <Lock size={20} style={{ marginBottom: 8 }} />
           <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Relatório disponível no Plano Completo</div>
-          <button className="nx-btn-primary" style={{ fontSize: 12.5, marginTop: 8 }} onClick={() => setLimitModal(upgradeMessage('advanced_metrics', null, limits.plan))}>Ver planos</button>
+          <button className="nx-btn-primary" style={{ fontSize: 12.5, marginTop: 8 }} onClick={upgrade}>Ver planos</button>
         </div>
       ) : (
         renderTab(tab)
@@ -917,7 +921,7 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
 }
 
 // ─── Tab: Visão Geral ───────────────────────────────────────────────────────
-function OverviewTab({ msgs, convs, atts, appts, alerts, kanbanCards, leads, procedures, insurancePlans, range, period, loading, only }) {
+function OverviewTab({ msgs, convs, atts, appts, alerts, kanbanCards, leads, procedures, insurancePlans, range, period, loading, only, advancedAllowed = true, onUpgrade }) {
   const { from, to } = range
   const show = (id) => !only || only.has(id) // export por seção
   const m = msgs.filter(x => inPeriod(x.created_at, from, to))
@@ -1177,7 +1181,17 @@ function OverviewTab({ msgs, convs, atts, appts, alerts, kanbanCards, leads, pro
       )}
 
       {/* Jornada & valor do paciente — LTV, tempo até agendar, consultas × exames */}
-      {show('jornada') && (
+      {show('jornada') && !advancedAllowed && (
+      <div className="nx-card metrics-no-print" style={{ padding: '1.25rem', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <Lock size={16} color="#64748B" />
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>Jornada & valor do paciente</div>
+          <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 2 }}>Quanto cada paciente vale para a clínica e quanto tempo leva do primeiro contato até agendar. Disponível no Plano Completo.</div>
+        </div>
+        <button className="nx-btn-primary" style={{ fontSize: 12.5 }} onClick={onUpgrade}>Ver planos</button>
+      </div>
+      )}
+      {show('jornada') && advancedAllowed && (
       <div className="nx-card" style={{ padding: '1.25rem', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
           <TrendingUp size={15} color="#2563EB" />
