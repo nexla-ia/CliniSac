@@ -515,7 +515,6 @@ export default function CompanyConversations() {
   const [crmSaving, setCrmSaving]         = useState(false)
   const [futureAppts, setFutureAppts]     = useState({}) // numero (só dígitos) → { starts_at, status, agenda_name }
   const [contextMenu, setContextMenu] = useState(null) // { x, y, contact }
-  const [msgMenu, setMsgMenu] = useState(null) // { x, y, msg }
   const [saveContactModal, setSaveContactModal] = useState(null) // { numero, nome, notes }
   const [savingContact, setSavingContact] = useState(false)
   const [locationModal, setLocationModal] = useState(null) // { input, name, address, geoError } | null
@@ -535,7 +534,6 @@ export default function CompanyConversations() {
   const emojiPickerRef                    = useRef(null)
   const crmBtnRef                         = useRef(null) // botão CRM do header — posiciona o dropdown via portal
   const moreBtnRef                        = useRef(null) // botão "Mais" do header — idem
-  const [attachMenuOpen, setAttachMenuOpen] = useState(false) // "+" do composer: emoji, msg rápida, arquivo, local
   const [readsMap, setReadsMap]           = useState({}) // session_id → last_read_at ISO
   const [readsLoaded, setReadsLoaded]     = useState(false)
   const [unreadCounts, setUnreadCounts]   = useState({}) // session_id → number
@@ -765,15 +763,6 @@ export default function CompanyConversations() {
       window.removeEventListener('scroll', close, true)
     }
   }, [contextMenu])
-
-  // Fecha o menu de ações da mensagem (⋯) ao rolar a conversa (o clique fora
-  // já é tratado pelo overlay invisível renderizado junto com o menu).
-  useEffect(() => {
-    if (!msgMenu) return
-    const close = () => setMsgMenu(null)
-    window.addEventListener('scroll', close, true)
-    return () => window.removeEventListener('scroll', close, true)
-  }, [msgMenu])
 
   // Copia o texto da mensagem (nossa ou do cliente) pra área de transferência
   async function copyMessageText(msg) {
@@ -3877,28 +3866,70 @@ export default function CompanyConversations() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: isLeft ? 'flex-start' : 'flex-end', gap: 5 }}>
                       {!msg.apagada && editingMsgId !== msg.id && (
                         <button
-                          onClick={e => {
-                            const r = e.currentTarget.getBoundingClientRect()
-                            const estH = 170 // altura estimada do menu (até 4 itens)
-                            const openUp = r.bottom + estH + 8 > window.innerHeight
-                            setMsgMenu({
-                              x: isLeft ? r.left : r.right - 160,
-                              y: openUp ? Math.max(4, r.top - estH - 4) : r.bottom + 4,
-                              msg,
-                            })
-                          }}
-                          title="Mais ações"
+                          onClick={() => startReply(msg)}
+                          title="Responder"
                           style={{
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            width: 20, height: 20, borderRadius: 4, border: 'none',
+                            width: 18, height: 18, borderRadius: 4, border: 'none',
                             background: 'transparent', cursor: 'pointer',
-                            color: 'var(--text-secondary)', opacity: 0.85, padding: 0,
+                            color: '#16A34A', opacity: 0.6, padding: 0,
                             transition: 'opacity 0.15s',
                           }}
                           onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                          onMouseLeave={e => e.currentTarget.style.opacity = '0.85'}
+                          onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
                         >
-                          <MoreHorizontal size={16} strokeWidth={2.5} />
+                          <Reply size={12} />
+                        </button>
+                      )}
+                      {!msg.apagada && editingMsgId !== msg.id && (msg.content || '').trim() && (
+                        <button
+                          onClick={() => copyMessageText(msg)}
+                          title="Copiar texto"
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: 18, height: 18, borderRadius: 4, border: 'none',
+                            background: 'transparent', cursor: 'pointer',
+                            color: 'var(--text-muted)', opacity: 0.55, padding: 0,
+                            transition: 'opacity 0.15s',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                          onMouseLeave={e => e.currentTarget.style.opacity = '0.55'}
+                        >
+                          <Copy size={10} />
+                        </button>
+                      )}
+                      {isAtendente && !msg.base64 && !msg.temMidia && !msg.apagada && editingMsgId !== msg.id && (
+                        <button
+                          onClick={() => { setEditingMsgId(msg.id); setEditingText(msg.content || '') }}
+                          title="Editar mensagem"
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: 18, height: 18, borderRadius: 4, border: 'none',
+                            background: 'transparent', cursor: 'pointer',
+                            color: 'var(--text-muted)', opacity: 0.55, padding: 0,
+                            transition: 'opacity 0.15s',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                          onMouseLeave={e => e.currentTarget.style.opacity = '0.55'}
+                        >
+                          <Pencil size={10} />
+                        </button>
+                      )}
+                      {!isCliente && !msg.apagada && editingMsgId !== msg.id && (
+                        <button
+                          onClick={() => setConfirmDelMsg(msg)}
+                          title="Apagar mensagem"
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: 18, height: 18, borderRadius: 4, border: 'none',
+                            background: 'transparent', cursor: 'pointer',
+                            color: '#DC2626', opacity: 0.5, padding: 0,
+                            transition: 'opacity 0.15s',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                          onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
+                        >
+                          <Trash2 size={10} />
                         </button>
                       )}
                       {msg.ts && (
@@ -4002,16 +4033,23 @@ export default function CompanyConversations() {
                   }}>
                     <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#DC2626', animation: 'pulse-dot 1.2s infinite' }} />
                     Gravando... {String(Math.floor(recordTime / 60)).padStart(2, '0')}:{String(recordTime % 60).padStart(2, '0')}
-                    <button onClick={() => stopRecording()} style={{
+                    <button onClick={() => stopRecording()} title="Parar e ouvir antes de enviar" style={{
                       marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5,
-                      background: '#DC2626', color: '#fff', border: 'none',
+                      background: '#fff', color: '#DC2626', border: '1px solid #FECACA',
                       borderRadius: 6, padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
                     }}>
                       <Square size={11} /> Parar
                     </button>
+                    <button onClick={() => handleSend()} disabled={sending || !canRespond(selected)} title="Parar e enviar o áudio" style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      background: '#16A34A', color: '#fff', border: 'none',
+                      borderRadius: 6, padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                    }}>
+                      <Send size={11} /> Enviar
+                    </button>
                   </div>
                 )}
-                <div className="chat-composer-row" style={{ display: 'flex', gap: 8, marginBottom: 10, position: 'relative', alignItems: 'flex-end' }}>
+                <div className="chat-composer-row" style={{ display: 'flex', gap: 8, marginBottom: 10, position: 'relative' }}>
                   {/* Emoji picker popup */}
                   {showEmoji && (
                     <div ref={emojiPickerRef} style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 9999 }}>
@@ -4038,69 +4076,6 @@ export default function CompanyConversations() {
                     style={{ display: 'none' }}
                     onChange={handlePickFile}
                   />
-                  {/* "+" agrupa emoji, msg rápida, arquivo e localização — igual
-                      o menu de anexo do WhatsApp, pra não poluir a fileira. */}
-                  {!recording && !recordedAudio && !attachedFiles.length && (
-                    <div style={{ position: 'relative', flexShrink: 0 }}>
-                      <button
-                        className="nx-btn-ghost"
-                        onClick={() => setAttachMenuOpen(v => !v)}
-                        title="Anexar"
-                        disabled={!canRespond(selected)}
-                        style={{
-                          padding: '0 12px', height: 38, flexShrink: 0,
-                          background: attachMenuOpen ? '#EFF6FF' : '#fff',
-                          borderColor: attachMenuOpen ? '#BFDBFE' : undefined,
-                          color: attachMenuOpen ? '#2563EB' : '#6B7280',
-                          cursor: canRespond(selected) ? 'pointer' : 'not-allowed',
-                          opacity: canRespond(selected) ? 1 : 0.45,
-                          display: 'inline-flex', alignItems: 'center',
-                        }}
-                      >
-                        <Plus size={18} />
-                      </button>
-                      {attachMenuOpen && (
-                        <>
-                          <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setAttachMenuOpen(false)} />
-                          <div style={{
-                            position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 51,
-                            background: '#fff', border: '1px solid var(--border)', borderRadius: 10,
-                            boxShadow: '0 8px 28px rgba(0,0,0,0.14)', padding: 6, minWidth: 190,
-                          }}>
-                            <button
-                              onClick={() => { setShowEmoji(true); setAttachMenuOpen(false) }}
-                              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 10px', border: 'none', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#0F172A', textAlign: 'left' }}
-                              onMouseEnter={e => e.currentTarget.style.background = '#F1F5F9'}
-                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                            >
-                              <span style={{ fontSize: 16, lineHeight: 1 }}>😊</span> Emoji
-                            </button>
-                            <QuickMessages
-                              variant="menurow"
-                              instancia={instance}
-                              onSelect={text => { setMsgText(prev => prev ? prev + ' ' + text : text); setAttachMenuOpen(false) }}
-                            />
-                            <button
-                              onClick={() => { fileInputRef.current?.click(); setAttachMenuOpen(false) }}
-                              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 10px', border: 'none', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#0F172A', textAlign: 'left' }}
-                              onMouseEnter={e => e.currentTarget.style.background = '#F1F5F9'}
-                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                            >
-                              <Paperclip size={15} color="#6B7280" /> Arquivo
-                            </button>
-                            <button
-                              onClick={() => { setLocationModal({ input: '', name: '', address: '' }); setAttachMenuOpen(false) }}
-                              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 10px', border: 'none', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#0F172A', textAlign: 'left' }}
-                              onMouseEnter={e => e.currentTarget.style.background = '#F1F5F9'}
-                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                            >
-                              <MapPin size={15} color="#6B7280" /> Localização
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
                   <textarea
                     ref={composerRef}
                     rows={1}
@@ -4110,7 +4085,7 @@ export default function CompanyConversations() {
                       !canRespond(selected) ? "Conversa está com outro atendente — você não pode responder"
                       : recordedAudio ? "Mensagem opcional para acompanhar o áudio..."
                       : attachedFiles.length ? (attachedFiles.length > 1 ? "Legenda (vai na última imagem)..." : "Mensagem opcional para acompanhar o arquivo...")
-                      : "Digite uma mensagem..."
+                      : "Digite uma mensagem...  (Shift+Enter pula linha)"
                     }
                     value={msgText}
                     onChange={e => setMsgText(e.target.value)}
@@ -4126,29 +4101,85 @@ export default function CompanyConversations() {
                     // pra digitar a próxima (o texto é limpo no início do handleSend).
                     disabled={recording || !canRespond(selected)}
                   />
-                  {/* Botão único que troca de lugar: microfone quando o campo tá
-                      vazio (ação padrão, igual WhatsApp), some assim que começa a
-                      digitar e vira enviar — nunca os dois ao mesmo tempo. */}
-                  {(msgText.trim() || recordedAudio || attachedFiles.length || recording) ? (
-                    <button
-                      className="nx-btn-primary"
-                      style={{ padding: '0 16px', flexShrink: 0 }}
-                      onClick={handleSend}
-                      disabled={(!msgText.trim() && !recordedAudio && !attachedFiles.length) || sending || !canRespond(selected)}
-                    >
-                      <Send size={14} />
-                    </button>
-                  ) : (
-                    <button
-                      className="nx-btn-primary"
-                      style={{ padding: '0 16px', flexShrink: 0 }}
-                      onClick={startRecording}
-                      title="Gravar áudio"
-                      disabled={!canRespond(selected)}
-                    >
-                      <Mic size={15} />
-                    </button>
+                  {!recording && !recordedAudio && !attachedFiles.length && (
+                    <>
+                      <button
+                        onClick={() => setShowEmoji(v => !v)}
+                        title="Emojis"
+                        disabled={!canRespond(selected)}
+                        style={{
+                          padding: '0 12px', flexShrink: 0,
+                          background: showEmoji ? '#FEF9C3' : '#fff',
+                          border: `1px solid ${showEmoji ? '#FDE047' : 'var(--border)'}`,
+                          borderRadius: 8, fontSize: 17, lineHeight: 1,
+                          cursor: canRespond(selected) ? 'pointer' : 'not-allowed',
+                          opacity: canRespond(selected) ? 1 : 0.45,
+                          display: 'inline-flex', alignItems: 'center',
+                        }}
+                      >
+                        😊
+                      </button>
+                      <QuickMessages
+                        instancia={instance}
+                        onSelect={text => setMsgText(prev => prev ? prev + ' ' + text : text)}
+                      />
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Anexar imagem, PDF ou vídeo"
+                        disabled={!canRespond(selected)}
+                        style={{
+                          padding: '0 14px', flexShrink: 0,
+                          background: '#fff', border: '1px solid var(--border)',
+                          borderRadius: 8, color: '#6B7280',
+                          cursor: canRespond(selected) ? 'pointer' : 'not-allowed',
+                          opacity: canRespond(selected) ? 1 : 0.45,
+                          display: 'inline-flex', alignItems: 'center',
+                        }}
+                      >
+                        <Paperclip size={15} />
+                      </button>
+                      <button
+                        onClick={startRecording}
+                        title="Gravar áudio"
+                        disabled={!canRespond(selected)}
+                        style={{
+                          padding: '0 14px', flexShrink: 0,
+                          background: '#fff', border: '1px solid var(--border)',
+                          borderRadius: 8, color: '#6B7280',
+                          cursor: canRespond(selected) ? 'pointer' : 'not-allowed',
+                          opacity: canRespond(selected) ? 1 : 0.45,
+                          display: 'inline-flex', alignItems: 'center',
+                        }}
+                      >
+                        <Mic size={15} />
+                      </button>
+                      <button
+                        onClick={() => setLocationModal({ input: '', name: '', address: '' })}
+                        title="Enviar localização"
+                        disabled={!canRespond(selected)}
+                        style={{
+                          padding: '0 14px', flexShrink: 0,
+                          background: '#fff', border: '1px solid var(--border)',
+                          borderRadius: 8, color: '#6B7280',
+                          cursor: canRespond(selected) ? 'pointer' : 'not-allowed',
+                          opacity: canRespond(selected) ? 1 : 0.45,
+                          display: 'inline-flex', alignItems: 'center',
+                        }}
+                      >
+                        <MapPin size={15} />
+                      </button>
+                    </>
                   )}
+                  {/* Enviar também vale durante a gravação: para e já manda o áudio. */}
+                  <button
+                    className="nx-btn-primary"
+                    style={{ padding: '0 16px', flexShrink: 0 }}
+                    onClick={() => handleSend()}
+                    title={recording ? 'Parar e enviar o áudio' : 'Enviar'}
+                    disabled={(!msgText.trim() && !recordedAudio && !attachedFiles.length && !recording) || sending || !canRespond(selected)}
+                  >
+                    <Send size={14} />
+                  </button>
                 </div>
                 <a
                   href={`https://wa.me/${selected.phone}`}
@@ -4229,57 +4260,6 @@ export default function CompanyConversations() {
             )
           })()}
         </div>
-      , document.body)}
-
-      {msgMenu && createPortal(
-        <>
-        <div style={{ position: 'fixed', inset: 0, zIndex: 99997 }} onClick={() => setMsgMenu(null)} />
-        <div style={{
-          position: 'fixed', left: Math.max(4, msgMenu.x), top: msgMenu.y, zIndex: 99998,
-          background: '#fff', border: '1px solid var(--border)',
-          borderRadius: 8, boxShadow: '0 6px 24px rgba(0,0,0,0.12)',
-          padding: 4, minWidth: 160,
-        }}
-        onClick={e => e.stopPropagation()}
-        >
-          {(() => {
-            const m = msgMenu.msg
-            const mIsCliente = m.type === 'cliente'
-            const mIsAtendente = m.type === 'atendente'
-            const itemStyle = {
-              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-              padding: '8px 12px', border: 'none', background: 'transparent',
-              fontSize: 13, color: 'var(--text-primary)', cursor: 'pointer',
-              borderRadius: 6, textAlign: 'left',
-            }
-            const dangerStyle = { ...itemStyle, color: '#DC2626' }
-            const hoverOn  = e => e.currentTarget.style.background = '#F8FAFC'
-            const hoverOff = e => e.currentTarget.style.background = 'transparent'
-            return (
-              <>
-                <button onClick={() => { startReply(m); setMsgMenu(null) }} style={itemStyle} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
-                  <Reply size={13} /> Responder
-                </button>
-                <button onClick={() => { copyMessageText(m); setMsgMenu(null) }} style={itemStyle} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
-                  <Copy size={13} /> Copiar
-                </button>
-                {mIsAtendente && !m.base64 && !m.temMidia && (
-                  <button
-                    onClick={() => { setEditingMsgId(m.id); setEditingText(m.content || ''); setMsgMenu(null) }}
-                    style={itemStyle} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
-                    <Pencil size={13} /> Editar
-                  </button>
-                )}
-                {!mIsCliente && (
-                  <button onClick={() => { setConfirmDelMsg(m); setMsgMenu(null) }} style={dangerStyle} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
-                    <Trash2 size={13} /> Apagar
-                  </button>
-                )}
-              </>
-            )
-          })()}
-        </div>
-        </>
       , document.body)}
 
       {saveContactModal && createPortal(

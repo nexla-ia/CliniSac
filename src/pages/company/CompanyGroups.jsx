@@ -347,7 +347,6 @@ export default function CompanyGroups() {
   const [searchLoading, setSearchLoading] = useState(false)
   const [jumpingTo, setJumpingTo]         = useState(null)
   const [showEmoji, setShowEmoji] = useState(false)
-  const [attachMenuOpen, setAttachMenuOpen] = useState(false) // "+" do composer: emoji, msg rápida, arquivo, local
   const [mentionMembers, setMentionMembers] = useState([])   // lista de membros para mention
   const [mentionLoading, setMentionLoading] = useState(false)
   const [mentionOpen, setMentionOpen] = useState(false)
@@ -2331,8 +2330,11 @@ export default function CompanyGroups() {
                 }}>
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#DC2626', animation: 'pulse-dot 1.2s infinite' }} />
                   Gravando... {String(Math.floor(recordTime / 60)).padStart(2, '0')}:{String(recordTime % 60).padStart(2, '0')}
-                  <button onClick={() => stopRecording()} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, background: '#DC2626', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  <button onClick={() => stopRecording()} title="Parar e ouvir antes de enviar" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, background: '#fff', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 6, padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                     <Square size={11} /> Parar
+                  </button>
+                  <button onClick={() => handleSend()} disabled={sending} title="Parar e enviar o áudio" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#16A34A', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                    <Send size={11} /> Enviar
                   </button>
                 </div>
               )}
@@ -2349,7 +2351,7 @@ export default function CompanyGroups() {
               )}
 
               {/* Input row */}
-              <div className="chat-composer-row" style={{ display: 'flex', gap: 8, position: 'relative', alignItems: 'flex-end' }}>
+              <div className="chat-composer-row" style={{ display: 'flex', gap: 8, position: 'relative' }}>
                 {/* Emoji picker popup */}
                 {showEmoji && (
                   <div ref={emojiPickerRef} style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 9999 }}>
@@ -2422,66 +2424,6 @@ export default function CompanyGroups() {
                   </div>
                 )}
                 <input ref={fileInputRef} type="file" multiple accept="image/*,application/pdf,video/*" style={{ display: 'none' }} onChange={handlePickFile} />
-                {/* "+" agrupa emoji, msg rápida, arquivo e localização — igual
-                    o menu de anexo do WhatsApp, pra não poluir a fileira. */}
-                {!recording && !recordedAudio && !attachedFiles.length && (
-                  <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <button
-                      className="nx-btn-ghost"
-                      onClick={() => setAttachMenuOpen(v => !v)}
-                      title="Anexar"
-                      style={{
-                        padding: '0 12px', height: 38, flexShrink: 0,
-                        background: attachMenuOpen ? '#EFF6FF' : '#fff',
-                        borderColor: attachMenuOpen ? '#BFDBFE' : undefined,
-                        color: attachMenuOpen ? '#2563EB' : '#6B7280',
-                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
-                      }}
-                    >
-                      <Plus size={18} />
-                    </button>
-                    {attachMenuOpen && (
-                      <>
-                        <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setAttachMenuOpen(false)} />
-                        <div style={{
-                          position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 51,
-                          background: '#fff', border: '1px solid var(--border)', borderRadius: 10,
-                          boxShadow: '0 8px 28px rgba(0,0,0,0.14)', padding: 6, minWidth: 190,
-                        }}>
-                          <button
-                            onClick={() => { setShowEmoji(true); setAttachMenuOpen(false) }}
-                            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 10px', border: 'none', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#0F172A', textAlign: 'left' }}
-                            onMouseEnter={e => e.currentTarget.style.background = '#F1F5F9'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                          >
-                            <span style={{ fontSize: 16, lineHeight: 1 }}>😊</span> Emoji
-                          </button>
-                          <QuickMessages
-                            variant="menurow"
-                            instancia={instance}
-                            onSelect={text => { setMsgText(prev => prev ? prev + ' ' + text : text); setAttachMenuOpen(false) }}
-                          />
-                          <button
-                            onClick={() => { fileInputRef.current?.click(); setAttachMenuOpen(false) }}
-                            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 10px', border: 'none', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#0F172A', textAlign: 'left' }}
-                            onMouseEnter={e => e.currentTarget.style.background = '#F1F5F9'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                          >
-                            <Paperclip size={15} color="#6B7280" /> Arquivo
-                          </button>
-                          <button
-                            onClick={() => { setLocationModal({ input: '', name: '', address: '' }); setAttachMenuOpen(false) }}
-                            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 10px', border: 'none', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#0F172A', textAlign: 'left' }}
-                            onMouseEnter={e => e.currentTarget.style.background = '#F1F5F9'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                          >
-                            <MapPin size={15} color="#6B7280" /> Localização
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
                 <textarea
                   ref={composerRef}
                   rows={1}
@@ -2498,28 +2440,73 @@ export default function CompanyGroups() {
                   // não desabilita no envio: caixa continua focada pra digitar a próxima
                   disabled={recording}
                 />
-                {/* Botão único que troca de lugar: microfone quando o campo tá
-                    vazio (ação padrão, igual WhatsApp), some assim que começa a
-                    digitar e vira enviar — nunca os dois ao mesmo tempo. */}
-                {(msgText.trim() || recordedAudio || attachedFiles.length || recording) ? (
-                  <button
-                    className="nx-btn-primary"
-                    style={{ padding: '0 16px', flexShrink: 0 }}
-                    onClick={handleSend}
-                    disabled={(!msgText.trim() && !recordedAudio && !attachedFiles.length) || sending}
-                  >
-                    <Send size={14} />
-                  </button>
-                ) : (
-                  <button
-                    className="nx-btn-primary"
-                    style={{ padding: '0 16px', flexShrink: 0 }}
-                    onClick={startRecording}
-                    title="Gravar áudio"
-                  >
-                    <Mic size={15} />
-                  </button>
+                {!recording && !recordedAudio && !attachedFiles.length && (
+                  <>
+                    <button
+                      onClick={() => setShowEmoji(v => !v)}
+                      title="Emojis"
+                      style={{
+                        padding: '0 12px', flexShrink: 0,
+                        background: showEmoji ? '#FEF9C3' : '#fff',
+                        border: `1px solid ${showEmoji ? '#FDE047' : 'var(--border)'}`,
+                        borderRadius: 8, fontSize: 17, lineHeight: 1, cursor: 'pointer',
+                        display: 'inline-flex', alignItems: 'center',
+                      }}
+                    >
+                      😊
+                    </button>
+                    <QuickMessages
+                      instancia={instance}
+                      onSelect={text => setMsgText(prev => prev ? prev + ' ' + text : text)}
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Anexar imagem, PDF ou vídeo"
+                      style={{
+                        padding: '0 14px', flexShrink: 0,
+                        background: '#fff', border: '1px solid var(--border)',
+                        borderRadius: 8, color: '#6B7280', cursor: 'pointer',
+                        display: 'inline-flex', alignItems: 'center',
+                      }}
+                    >
+                      <Paperclip size={15} />
+                    </button>
+                    <button
+                      onClick={startRecording}
+                      title="Gravar áudio"
+                      style={{
+                        padding: '0 14px', flexShrink: 0,
+                        background: '#fff', border: '1px solid var(--border)',
+                        borderRadius: 8, color: '#6B7280', cursor: 'pointer',
+                        display: 'inline-flex', alignItems: 'center',
+                      }}
+                    >
+                      <Mic size={15} />
+                    </button>
+                    <button
+                      onClick={() => setLocationModal({ input: '', name: '', address: '' })}
+                      title="Enviar localização"
+                      style={{
+                        padding: '0 14px', flexShrink: 0,
+                        background: '#fff', border: '1px solid var(--border)',
+                        borderRadius: 8, color: '#6B7280', cursor: 'pointer',
+                        display: 'inline-flex', alignItems: 'center',
+                      }}
+                    >
+                      <MapPin size={15} />
+                    </button>
+                  </>
                 )}
+                {/* Enviar também vale durante a gravação: para e já manda o áudio. */}
+                <button
+                  className="nx-btn-primary"
+                  style={{ padding: '0 16px', flexShrink: 0 }}
+                  onClick={() => handleSend()}
+                  title={recording ? 'Parar e enviar o áudio' : 'Enviar'}
+                  disabled={(!msgText.trim() && !recordedAudio && !attachedFiles.length && !recording) || sending}
+                >
+                  <Send size={14} />
+                </button>
               </div>
             </div>
           </>

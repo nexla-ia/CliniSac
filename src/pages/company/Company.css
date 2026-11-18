@@ -600,14 +600,14 @@
     padding: 6px 9px !important;
   }
 
-  /* Composer: campo de texto sempre com espaço garantido — agora só disputa
-     com o "+" (menu de anexo) e o microfone/enviar, os dois de tamanho fixo
-     pequeno, então não tem mais aquela disputa de espaço de antes. */
+  /* Composer: no celular o campo de texto ocupa a linha inteira e os botões
+     (emoji, msg rápida, anexo, áudio, local, enviar) descem pra linha de baixo. */
   .chat-composer-row {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    row-gap: 8px;
   }
-  .chat-composer-input {
-    min-width: 60px !important;
+  .chat-composer-row .chat-composer-input {
+    flex: 1 1 100% !important;
   }
 
   /* Cabeçalho da página Alertas: título vs. status+filtros brigando pelo
