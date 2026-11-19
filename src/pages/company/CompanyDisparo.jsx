@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { fetchConversaContatos, fetchGruposLista } from '../../lib/queries'
 import { detectSendError } from '../../lib/sendStatus'
 import ConfirmModal from '../../components/ConfirmModal'
+import { normalizePhoneDigits } from '../../lib/phoneBR'
 import {
   Search, AlertCircle, Users, Check, Zap, Clock, Plus, Trash2,
   Image as ImageIcon, Type, X, Layers, UploadCloud, ArrowUp, ArrowDown, Phone,
@@ -52,6 +53,63 @@ function fmtWhen(ts) {
 function fmtSegundos(s) {
   const m = Math.floor(s / 60)
   return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+}
+
+// Número bonito pra exibir (contatos de grupo usam idgrupo, não é telefone).
+// Normaliza primeiro (mesma regra usada nas Conversas/CRM) pra não depender
+// de como cada número ficou gravado — com ou sem 55, com ou sem o 9 extra.
+// O canônico BR guarda sem o 9 (8 dígitos); reconstrói pra mostrar o número
+// completo de celular (DDD + 9 + 8), em vez de cortar um dígito na tela.
+function fmtPhoneDisparo(destino, tipo) {
+  if (tipo === 'grupo') return null
+  if (!destino) return ''
+  const d = normalizePhoneDigits(destino)
+  if (!d) return destino
+  if (d.length === 12 && d.startsWith('55')) {
+    const local = '9' + d.slice(4)
+    return `+55 (${d.slice(2, 4)}) ${local.slice(0, 5)}-${local.slice(5)}`
+  }
+  return `+${d}`
+}
+
+// "há poucos minutos" / "há 3h" / "ontem" / "12/11" — mais fácil de ler numa lista longa.
+function fmtRelativo(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  if (isNaN(d.getTime())) return ''
+  const diffMin = Math.round((Date.now() - d.getTime()) / 60000)
+  if (diffMin < 1) return 'agora'
+  if (diffMin < 60) return `há ${diffMin}min`
+  const diffH = Math.round(diffMin / 60)
+  if (diffH < 24) return `há ${diffH}h`
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
+  const diaMsg = new Date(d); diaMsg.setHours(0, 0, 0, 0)
+  const diffDias = Math.round((hoje - diaMsg) / 86400000)
+  if (diffDias === 1) return 'ontem'
+  if (diffDias < 7) return `há ${diffDias}d`
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
+// Cor estável a partir do nome — mesmo contato sempre cai na mesma cor.
+const AVATAR_CORES = ['#2563EB', '#7C3AED', '#059669', '#D97706', '#DB2777', '#0891B2']
+function corAvatar(seed) {
+  let h = 0
+  for (let i = 0; i < (seed || '').length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  return AVATAR_CORES[h % AVATAR_CORES.length]
+}
+
+function Avatar({ nome, tipo, size = 26 }) {
+  const cor = tipo === 'grupo' ? '#7C3AED' : corAvatar(nome || '?')
+  const inicial = (nome || '?').trim().charAt(0).toUpperCase()
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%', flexShrink: 0,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: `${cor}1A`, color: cor, fontSize: size * 0.42, fontWeight: 700,
+    }}>
+      {tipo === 'grupo' ? <Users size={size * 0.5} /> : inicial}
+    </div>
+  )
 }
 
 // Balão verde de conversa — como a mensagem vai chegar no WhatsApp do cliente
@@ -676,10 +734,13 @@ export default function CompanyDisparo() {
         const enviados = lista.filter(e => e.status === 'enviado')
         const pendentes = lista.filter(e => e.status === 'pendente')
         const erros = lista.filter(e => e.status === 'erro')
+        const total = lista.length || 1
+        const pctEnviado = Math.round(enviados.length / total * 100)
+        const pctErro = Math.round(erros.length / total * 100)
         const colunas = [
-          { titulo: 'Enviados', cor: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0', lista: enviados },
-          { titulo: 'Não enviados', cor: '#64748B', bg: '#F8FAFC', border: 'var(--border)', lista: pendentes },
-          { titulo: 'Erro', cor: '#DC2626', bg: '#FEF2F2', border: '#FECACA', lista: erros },
+          { titulo: 'Enviados', cor: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0', Icon: Check, lista: enviados, vazio: 'Ninguém recebeu ainda.' },
+          { titulo: 'Não enviados', cor: '#64748B', bg: '#F8FAFC', border: 'var(--border)', Icon: Clock, lista: pendentes, vazio: 'Todo mundo já recebeu! 🎉' },
+          { titulo: 'Erro', cor: '#DC2626', bg: '#FEF2F2', border: '#FECACA', Icon: AlertCircle, lista: erros, vazio: 'Nenhum erro por aqui.' },
         ]
         return (
           <div style={{
@@ -687,15 +748,27 @@ export default function CompanyDisparo() {
             display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
             backdropFilter: 'blur(4px)', padding: '1.5rem',
           }} onClick={() => setResumoId(null)}>
-            <div className="nx-card" style={{ width: '100%', maxWidth: 900, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
-              <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{c.nome}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    {lista.length} destinatário{lista.length === 1 ? '' : 's'} no total
+            <div className="nx-card" style={{ width: '100%', maxWidth: 920, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+              <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: '50%', flexShrink: 0,
+                  background: `conic-gradient(#16A34A 0 ${pctEnviado * 3.6}deg, #DC2626 ${pctEnviado * 3.6}deg ${(pctEnviado + pctErro) * 3.6}deg, #E2E8F0 ${(pctEnviado + pctErro) * 3.6}deg 360deg)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <div style={{ width: 42, height: 42, borderRadius: '50%', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 800, color: 'var(--text-primary)' }}>
+                    {pctEnviado}%
                   </div>
                 </div>
-                <button style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => setResumoId(null)}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    <strong style={{ color: '#16A34A' }}>{enviados.length} enviado{enviados.length === 1 ? '' : 's'}</strong>
+                    {' · '}{pendentes.length} pendente{pendentes.length === 1 ? '' : 's'}
+                    {erros.length > 0 && <>{' · '}<strong style={{ color: '#DC2626' }}>{erros.length} erro{erros.length === 1 ? '' : 's'}</strong></>}
+                    {' · '}{lista.length} no total
+                  </div>
+                </div>
+                <button style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 }} onClick={() => setResumoId(null)}>
                   <X size={16} />
                 </button>
               </div>
@@ -703,27 +776,30 @@ export default function CompanyDisparo() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, padding: '1.25rem 1.5rem', overflowY: 'auto' }}>
                 {colunas.map(col => (
                   <div key={col.titulo} style={{ border: `1px solid ${col.border}`, borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ padding: '9px 12px', background: col.bg, borderBottom: `1px solid ${col.border}`, fontSize: 12, fontWeight: 700, color: col.cor }}>
-                      {col.titulo} ({col.lista.length})
+                    <div style={{ padding: '9px 12px', background: col.bg, borderBottom: `1px solid ${col.border}`, fontSize: 12, fontWeight: 700, color: col.cor, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <col.Icon size={12} /> {col.titulo} ({col.lista.length})
                     </div>
                     <div style={{ maxHeight: 360, overflowY: 'auto' }}>
                       {col.lista.length === 0 && (
-                        <div style={{ padding: '16px 10px', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>Ninguém aqui.</div>
+                        <div style={{ padding: '22px 10px', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>{col.vazio}</div>
                       )}
                       {col.lista.map((e, i) => (
-                        <div key={e.id} style={{ padding: '8px 12px', borderTop: i ? '1px solid var(--border)' : 'none' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            {e.tipo === 'grupo' ? <Users size={11} style={{ color: '#7C3AED', flexShrink: 0 }} /> : <Phone size={11} style={{ color: '#2563EB', flexShrink: 0 }} />}
-                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {e.nome || e.destino}
-                            </span>
+                        <div key={e.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 12px', borderTop: i ? '1px solid var(--border)' : 'none' }}>
+                          <Avatar nome={e.nome || e.destino} tipo={e.tipo} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {e.nome || fmtPhoneDisparo(e.destino, e.tipo) || e.destino}
+                            </div>
+                            {e.nome && e.tipo === 'contato' && (
+                              <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{fmtPhoneDisparo(e.destino, e.tipo)}</div>
+                            )}
+                            {e.status === 'enviado' && e.enviado_em && (
+                              <div style={{ fontSize: 10, color: '#16A34A', marginTop: 2, fontWeight: 600 }}>✓ {fmtRelativo(e.enviado_em)}</div>
+                            )}
+                            {e.status === 'erro' && (
+                              <div style={{ fontSize: 10, color: '#DC2626', marginTop: 2 }}>{e.erro_msg || 'Falha no envio'}</div>
+                            )}
                           </div>
-                          {e.status === 'enviado' && e.enviado_em && (
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{fmtWhen(e.enviado_em)}</div>
-                          )}
-                          {e.status === 'erro' && e.erro_msg && (
-                            <div style={{ fontSize: 10, color: '#DC2626', marginTop: 2 }}>{e.erro_msg}</div>
-                          )}
                         </div>
                       ))}
                     </div>
@@ -855,7 +931,7 @@ export default function CompanyDisparo() {
                                 {item.tipo === 'grupo' ? <Users size={13} style={{ color: '#7C3AED', flexShrink: 0 }} /> : <Phone size={13} style={{ color: '#2563EB', flexShrink: 0 }} />}
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nome}</div>
-                                  {item.tipo === 'contato' && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.numero}</div>}
+                                  {item.tipo === 'contato' && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{fmtPhoneDisparo(item.numero, 'contato')}</div>}
                                 </div>
                                 {statusItem === 'enviado' && (
                                   <span title="Já recebeu essa campanha" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, color: '#16A34A', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>
