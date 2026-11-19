@@ -304,8 +304,8 @@ export default function CompanyMetrics({ companyOverride = null, hideHeader = fa
   const limits        = getEffectiveLimits(company)
   // No modo ADM (companyOverride), libera todas as abas — admin vê tudo.
   const advancedAllowed = companyOverride ? true : limits.advanced_metrics
-  // Plano Base: só Visão Geral, Atendimento e Agenda, até o mês atual, sem exportar.
-  const ADVANCED_TABS  = ['equipe', 'financeiro', 'leads', 'crm', 'atividades', 'nps']
+  // Plano Base: Visão Geral, Atendimento, Agenda e o relatório do CRM, até o mês atual, sem exportar.
+  const ADVANCED_TABS  = ['equipe', 'financeiro', 'leads', 'atividades', 'nps']
   const upgrade = () => setLimitModal(upgradeMessage('advanced_metrics', null, limits.plan))
   const periodLocked = key => !advancedAllowed && (key === 'todos' || key === 'custom')
 
