@@ -464,7 +464,7 @@ function InstagramInbox() {
     // Grava quem tava atendendo no momento do fechamento — attendances é
     // apagada logo abaixo, sem isso não sobra registro de quem finalizou.
     const att = attendancesMap[closeModal.session_id]
-    const { error } = await supabase.from('conversations').insert({
+    const row = {
       session_id: closeModal.session_id,
       instancia: instance,
       reason,
@@ -473,9 +473,19 @@ function InstagramInbox() {
       closed_by_name: att?.attendant_name || null,
       closed_by_sector_id: att?.sector_id || null,
       closed_by_sector_name: att?.sector_name || null,
-    })
+    }
+    let { error } = await supabase.from('conversations').insert(row)
+    // Banco sem as colunas closed_by_* (migration 20260902 não rodou): finaliza
+    // mesmo assim, só sem registrar quem fechou.
+    if (error && /closed_by_/.test(error.message || '')) {
+      ({ error } = await supabase.from('conversations').insert((({ closed_by_email, closed_by_name, closed_by_sector_id, closed_by_sector_name, ...r }) => r)(row)))
+    }
     setClosing(false)
-    if (error) return
+    if (error) {
+      setToast({ message: `Não foi possível finalizar: ${error.message}`, color: '#DC2626' })
+      setTimeout(() => setToast(null), 6000)
+      return
+    }
     const closedId = closeModal.session_id
     setClosedMap(prev => ({ ...prev, [closedId]: reason }))
     supabase.from('attendances').delete().eq('numero', closedId).eq('instancia', instance)

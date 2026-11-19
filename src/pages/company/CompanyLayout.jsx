@@ -200,7 +200,7 @@ export default function CompanyLayout() {
       item('contatos', { to: '/painel/contatos', icon: Contact2, label: 'Pacientes' }),
       item('agenda', { to: '/painel/agenda', icon: Calendar, label: 'Agenda' }),
       item('kanban', { to: '/painel/atividades', icon: Kanban, label: 'Kanban' }),
-      ...(isAdmin ? [item('crm', { to: '/painel/crm', icon: GitMerge, label: 'CRM' })] : []),
+      item('crm', { to: '/painel/crm', icon: GitMerge, label: 'CRM' }),
       ...(isAdmin ? [item('financeiro', { to: '/painel/financeiro', icon: DollarSign, label: 'Financeiro' })] : []),
       ...(isAdmin ? [item('catalogo', { to: '/painel/catalogo', icon: Stethoscope, label: 'Catálogo Clínico' })] : []),
       item('disparo', { to: '/painel/disparo', icon: Send, label: 'Disparo' }),

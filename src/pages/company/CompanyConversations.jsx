@@ -2631,8 +2631,8 @@ export default function CompanyConversations() {
     if (!contact || !instance) return
     await supabase.from('conversations').delete().eq('session_id', contact.session_id).eq('instancia', instance)
     await supabase.from('attendances').delete().eq('numero', contact.session_id).eq('instancia', instance)
-    setClosedMap(prev => { const n = { ...prev }; delete n[contact.session_id]; return n })
-    setAttendancesMap(prev => { const n = { ...prev }; delete n[contact.session_id]; return n })
+    setClosedMap(prev => { const n = { ...prev }; delete n[contact.session_id]; delete n[canonSession(contact.session_id)]; return n })
+    setAttendancesMap(prev => { const n = { ...prev }; delete n[contact.session_id]; delete n[canonSession(contact.session_id)]; return n })
     setTab('recepcao')
     setToast({ message: 'Conversa reaberta', color: '#16A34A' })
     setTimeout(() => setToast(null), 2500)
@@ -2647,20 +2647,28 @@ export default function CompanyConversations() {
     // Grava quem tava atendendo no momento do fechamento — attendances é
     // apagada logo abaixo, sem isso não sobra registro de quem finalizou
     // (o ranking de atendentes em Métricas depende disso).
-    const { error } = await supabase.from('conversations').upsert(
-      ids.map(sid => {
-        const att = attendancesMap[sid]
-        return {
-          session_id: sid, instancia: instance, reason, closed_at: nowISO,
-          closed_by_email: att?.attendant_email || null,
-          closed_by_name: att?.attendant_name || null,
-          closed_by_sector_id: att?.sector_id || null,
-          closed_by_sector_name: att?.sector_name || null,
-        }
-      }),
-      { onConflict: 'session_id,instancia' }
-    )
-    if (error) { setClosing(false); return }
+    const rows = ids.map(sid => {
+      const att = attendancesMap[canonSession(sid)] || attendancesMap[sid]
+      return {
+        session_id: sid, instancia: instance, reason, closed_at: nowISO,
+        closed_by_email: att?.attendant_email || null,
+        closed_by_name: att?.attendant_name || null,
+        closed_by_sector_id: att?.sector_id || null,
+        closed_by_sector_name: att?.sector_name || null,
+      }
+    })
+    let { error } = await supabase.from('conversations').upsert(rows, { onConflict: 'session_id,instancia' })
+    // Banco sem as colunas closed_by_* (migration 20260902 não rodou): finaliza
+    // mesmo assim, só sem registrar quem fechou.
+    if (error && /closed_by_/.test(error.message || '')) {
+      ({ error } = await supabase.from('conversations').upsert(rows.map(({ closed_by_email, closed_by_name, closed_by_sector_id, closed_by_sector_name, ...r }) => r), { onConflict: 'session_id,instancia' }))
+    }
+    if (error) {
+      setClosing(false)
+      setToast({ message: `Não foi possível finalizar: ${error.message}`, color: '#DC2626' })
+      setTimeout(() => setToast(null), 6000)
+      return
+    }
     // Espera a limpeza dos atendimentos aterrissar. Sem o await, reabrir e
     // assumir logo em seguida corre contra esse delete e bate na trava de
     // duplicidade ("já foi assumida por outro atendente" sem ter ninguém).
@@ -2668,8 +2676,8 @@ export default function CompanyConversations() {
       supabase.from('attendances').delete().eq('numero', sid).eq('instancia', instance)
     ))
     setClosing(false)
-    setClosedMap(prev => { const n = { ...prev }; ids.forEach(sid => { n[sid] = reason }); return n })
-    setAttendancesMap(prev => { const n = { ...prev }; ids.forEach(sid => delete n[sid]); return n })
+    setClosedMap(prev => { const n = { ...prev }; ids.forEach(sid => { n[canonSession(sid)] = reason }); return n })
+    setAttendancesMap(prev => { const n = { ...prev }; ids.forEach(sid => { delete n[sid]; delete n[canonSession(sid)] }); return n })
     if (selected && ids.includes(selected.session_id)) setSelected(null)
     setSelectedIds([])
     setCloseModal(null)
