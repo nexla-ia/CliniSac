@@ -598,11 +598,19 @@ export default function CompanyDisparo() {
                 </div>
 
                 {contagem.total > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#16A34A' }}>✓ {contagem.enviado} enviado{contagem.enviado === 1 ? '' : 's'}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#64748B' }}>· {contagem.pendente} não enviado{contagem.pendente === 1 ? '' : 's'}</span>
-                    {contagem.erro > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: '#DC2626' }}>· {contagem.erro} erro{contagem.erro === 1 ? '' : 's'}</span>}
-                  </div>
+                  <>
+                    <div style={{ display: 'flex', width: '100%', height: 5, borderRadius: 4, overflow: 'hidden', marginTop: 10, background: '#F1F5F9' }}>
+                      {contagem.enviado > 0 && <div style={{ width: `${contagem.enviado / contagem.total * 100}%`, background: '#16A34A' }} />}
+                      {contagem.erro > 0 && <div style={{ width: `${contagem.erro / contagem.total * 100}%`, background: '#DC2626' }} />}
+                      {contagem.pendente > 0 && <div style={{ width: `${contagem.pendente / contagem.total * 100}%`, background: '#E2E8F0' }} />}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#16A34A' }}>✓ {contagem.enviado} enviado{contagem.enviado === 1 ? '' : 's'}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#64748B' }}>· {contagem.pendente} não enviado{contagem.pendente === 1 ? '' : 's'}</span>
+                      {contagem.erro > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: '#DC2626' }}>· {contagem.erro} erro{contagem.erro === 1 ? '' : 's'}</span>}
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#2563EB', marginLeft: 'auto' }}>Ver quem recebeu →</span>
+                    </div>
+                  </>
                 )}
 
                 {itens.length > 0 && (
@@ -811,6 +819,11 @@ export default function CompanyDisparo() {
                   {(() => {
                     const lista = destTab === 'grupos' ? gruposFiltrados : contatosFiltrados
                     const todosSelecionados = lista.length > 0 && lista.every(item => isDestinatarioSelecionado(item))
+                    const enviosDestaCampanha = campanhaModal.id ? (enviosPorCampanha[campanhaModal.id] || []) : []
+                    const statusDoItem = item => {
+                      const e = enviosDestaCampanha.find(e => e.tipo === item.tipo && e.destino === destinatarioKey(item))
+                      return e?.status || null
+                    }
                     return (
                       <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
                         <label style={{
@@ -831,6 +844,7 @@ export default function CompanyDisparo() {
                           {lista.map((item, i) => {
                             const key = destinatarioKey(item)
                             const selecionado = isDestinatarioSelecionado(item)
+                            const statusItem = statusDoItem(item)
                             return (
                               <label key={key} style={{
                                 display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', cursor: 'pointer',
@@ -843,6 +857,16 @@ export default function CompanyDisparo() {
                                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nome}</div>
                                   {item.tipo === 'contato' && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.numero}</div>}
                                 </div>
+                                {statusItem === 'enviado' && (
+                                  <span title="Já recebeu essa campanha" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, color: '#16A34A', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>
+                                    <Check size={10} /> Enviado
+                                  </span>
+                                )}
+                                {statusItem === 'erro' && (
+                                  <span title="Deu erro ao mandar pra este" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>
+                                    <AlertCircle size={10} /> Erro
+                                  </span>
+                                )}
                               </label>
                             )
                           })}
