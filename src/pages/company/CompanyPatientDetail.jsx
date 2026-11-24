@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { findOwnerOfNumero, duplicateMessage, saveWithOptionalNumero, DUPLICATE } from '../../lib/savedContacts'
 import ConfirmModal from '../../components/ConfirmModal'
 import ImageLightbox from '../../components/ImageLightbox'
 import {
@@ -600,8 +601,15 @@ export default function CompanyPatientDetail() {
       notes: editing.notes?.trim() || null,
       photo: editing.photo || null,
     }
-    const { error } = await supabase.from('saved_contacts').update(payload).eq('id', id)
+    // Número que já é de outro paciente: avisa de quem é em vez do erro cru do banco.
+    const owner = await findOwnerOfNumero(instance, numero, id)
+    if (owner) { setSaving(false); setErr(duplicateMessage(owner)); return }
+    const { error } = await saveWithOptionalNumero(numero, num => {
+      payload.numero = num
+      return supabase.from('saved_contacts').update(payload).eq('id', id)
+    })
     setSaving(false)
+    if (error?.code === DUPLICATE) { setErr(duplicateMessage(null)); return }
     if (error) { setErr('Erro: ' + error.message); return }
     setPatient(prev => ({ ...prev, ...payload }))
     setEditing(null)

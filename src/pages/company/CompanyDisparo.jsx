@@ -212,6 +212,7 @@ export default function CompanyDisparo() {
       const vistos = new Set()
       const out = []
       ;(saved || []).forEach(c => {
+        if (!c.numero) return // paciente sem telefone: não tem como disparar
         const norm = normPhoneKey(c.numero)
         if (vistos.has(norm)) return
         vistos.add(norm)

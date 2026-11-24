@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { findOwnerOfNumero, duplicateMessage, saveWithOptionalNumero, DUPLICATE } from '../../lib/savedContacts'
 import { fetchDistinctNumeros } from '../../lib/queries'
 import ConfirmModal from '../../components/ConfirmModal'
 import {
@@ -52,6 +53,7 @@ export default function CompanyContacts() {
   const [newModal, setNewModal] = useState(null)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
+  const [dupOwner, setDupOwner] = useState(null) // paciente que já tem o número digitado
   const [copiedId, setCopiedId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [deletingNow, setDeletingNow] = useState(false)
@@ -98,20 +100,27 @@ export default function CompanyContacts() {
   function openNew() {
     setNewModal({ nome: '', numero: '' })
     setErr('')
+    setDupOwner(null)
   }
 
   async function handleCreate() {
     if (!newModal.nome?.trim()) { setErr('Nome é obrigatório'); return }
     setSaving(true)
+    setDupOwner(null)
     const numero = newModal.numero?.toString().replace(/\D/g, '') || ''
-    const payload = {
-      numero,
-      instancia: instance,
-      nome: newModal.nome.trim(),
-      created_by_email: session?.user?.email,
-    }
-    const { data, error } = await supabase.from('saved_contacts').insert(payload).select().single()
+    // Número que já é de outro paciente: avisa de quem é (com atalho pra ficha)
+    // em vez do erro cru do banco.
+    const owner = await findOwnerOfNumero(instance, numero)
+    if (owner) { setSaving(false); setErr(duplicateMessage(owner)); setDupOwner(owner); return }
+    const { data, error } = await saveWithOptionalNumero(numero, num =>
+      supabase.from('saved_contacts').insert({
+        numero: num,
+        instancia: instance,
+        nome: newModal.nome.trim(),
+        created_by_email: session?.user?.email,
+      }).select().single())
     setSaving(false)
+    if (error?.code === DUPLICATE) { setErr(duplicateMessage(null)); return }
     if (error) { setErr('Erro: ' + error.message); return }
     setNewModal(null)
     if (data?.id) navigate(`/painel/contatos/${data.id}`)
@@ -391,7 +400,17 @@ export default function CompanyContacts() {
             </div>
 
             <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)' }}>
-              {err && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#DC2626', marginBottom: 12 }}>{err}</div>}
+              {err && (
+                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#DC2626', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ flex: 1, minWidth: 160 }}>{err}</span>
+                  {dupOwner && (
+                    <button type="button" onClick={() => { setNewModal(null); navigate(`/painel/contatos/${dupOwner.id}`) }}
+                      style={{ background: '#fff', border: '1px solid #FECACA', color: '#DC2626', borderRadius: 6, padding: '4px 10px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                      Abrir ficha
+                    </button>
+                  )}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 10 }}>
                 <button className="nx-btn-ghost" style={{ flex: 1 }} onClick={() => setNewModal(null)}>Cancelar</button>
                 <button className="nx-btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={handleCreate} disabled={saving}>
