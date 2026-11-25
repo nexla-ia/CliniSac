@@ -209,14 +209,29 @@ export function AuthProvider({ children }) {
     return () => { alive = false; clearInterval(id) }
   }, [session?.user?.id, session?.deviceToken])
 
-  // Mantém o SETOR do usuário sincronizado com o banco. Se um admin remover
-  // a pessoa de um setor, ela perde o acesso às conversas daquele setor sem
+  // Mantém o SETOR e as TELAS liberadas do usuário sincronizados com o banco.
+  // Se um admin remover a pessoa de um setor ou mudar as telas dela, vale sem
   // precisar deslogar. Atualiza ao abrir, a cada 60s e ao voltar pra aba.
   useEffect(() => {
     const uid = session?.user?.id
     if (session?.role !== 'company' || !uid || session?.user?.master) return
     let alive = true
+    async function refreshScreens() {
+      // users.screens (migration 20261125): consulta separada pra não quebrar o
+      // login se a coluna ainda não existir.
+      try {
+        const { data, error } = await supabase.from('users').select('screens').eq('id', uid).maybeSingle()
+        if (!alive || error) return
+        const next = data?.screens || null
+        setSession(prev => {
+          if (!prev?.user) return prev
+          if (JSON.stringify(prev.user.screens || null) === JSON.stringify(next)) return prev
+          return { ...prev, user: { ...prev.user, screens: next } }
+        })
+      } catch {}
+    }
     async function refreshSector() {
+      refreshScreens()
       try {
         const { data, error } = await supabase
           .from('sector_members')

@@ -8,12 +8,13 @@ import SupportWidget from '../../components/SupportWidget'
 import UpdatePopup from '../../components/UpdatePopup'
 import ModuleLockedScreen from '../../components/ModuleLockedScreen'
 import { shouldBlockAccess } from '../../lib/billing'
-import { MessageSquare, History, BellRing, BarChart2, Settings2, Contact2, Calendar, Sparkles, Kanban, Stethoscope, GraduationCap, Instagram, ShieldCheck, Headset, MessageSquareHeart, Menu, X, Users, DollarSign, GitMerge, Star, Send } from 'lucide-react'
+import { MessageSquare, History, BellRing, BarChart2, Settings2, Contact2, Calendar, Sparkles, Kanban, Stethoscope, GraduationCap, Instagram, ShieldCheck, Headset, MessageSquareHeart, Menu, X, Users, DollarSign, GitMerge, Star, Send, Lock } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { fetchGruposLista } from '../../lib/queries'
 import { latestUpdateDate } from '../../data/updates'
 import { isModuleOn, resolvePlan, planLabel } from '../../lib/planLimits'
+import { canSeeScreen } from '../../lib/screenAccess'
 import './Company.css'
 
 export default function CompanyLayout() {
@@ -183,31 +184,34 @@ export default function CompanyLayout() {
   // Módulo não contratado CONTINUA no menu, com cadeado: ao abrir, mostra uma prévia
   // bloqueada com convite pra liberar (vende o módulo em vez de escondê-lo).
   const item = (key, link) => mod(key) ? link : { ...link, locked: true, badge: null }
+  // Tela que o USUÁRIO não tem permissão (definida pelo admin) nem aparece no menu.
+  const can = key => canSeeScreen(session?.user, key)
+  const screen = (key, link) => can(key) ? [item(key, link)] : []
 
   // Menus agrupados por contexto.
   const groups = [
     { title: 'Atendimento', items: [
-      item('conversas', { to: '/painel/conversas', icon: MessageSquare, label: 'Conversas',
+      ...screen('conversas', { to: '/painel/conversas', icon: MessageSquare, label: 'Conversas',
         badge: activeCount > 0 ? activeCount : null, badgeColor: 'cyan' }),
-      ...(aiEnabled ? [item('conversas', { to: '/painel/historico', icon: History, label: 'Conversas IA' })] : []),
-      item('instagram', { to: '/painel/instagram', icon: Instagram, label: 'Instagram' }),
-      item('grupos', { to: '/painel/grupos', icon: Users, label: 'Grupos',
+      ...(aiEnabled ? screen('conversas', { to: '/painel/historico', icon: History, label: 'Conversas IA' }) : []),
+      ...screen('instagram', { to: '/painel/instagram', icon: Instagram, label: 'Instagram' }),
+      ...screen('grupos', { to: '/painel/grupos', icon: Users, label: 'Grupos',
         badge: groupUnread > 0 ? groupUnread : null, badgeColor: 'cyan' }),
-      item('alertas', { to: '/painel/alertas', icon: BellRing, label: 'Alertas',
+      ...screen('alertas', { to: '/painel/alertas', icon: BellRing, label: 'Alertas',
         badge: pendingAlerts > 0 ? pendingAlerts : null, badgeColor: 'amber' }),
     ] },
     { title: 'Gestão', items: [
-      item('contatos', { to: '/painel/contatos', icon: Contact2, label: 'Pacientes' }),
-      item('agenda', { to: '/painel/agenda', icon: Calendar, label: 'Agenda' }),
-      item('kanban', { to: '/painel/atividades', icon: Kanban, label: 'Kanban' }),
-      item('crm', { to: '/painel/crm', icon: GitMerge, label: 'CRM' }),
-      ...(isAdmin ? [item('financeiro', { to: '/painel/financeiro', icon: DollarSign, label: 'Financeiro' })] : []),
-      ...(isAdmin ? [item('catalogo', { to: '/painel/catalogo', icon: Stethoscope, label: 'Catálogo Clínico' })] : []),
-      item('disparo', { to: '/painel/disparo', icon: Send, label: 'Disparo' }),
+      ...screen('contatos', { to: '/painel/contatos', icon: Contact2, label: 'Pacientes' }),
+      ...screen('agenda', { to: '/painel/agenda', icon: Calendar, label: 'Agenda' }),
+      ...screen('kanban', { to: '/painel/atividades', icon: Kanban, label: 'Kanban' }),
+      ...screen('crm', { to: '/painel/crm', icon: GitMerge, label: 'CRM' }),
+      ...screen('financeiro', { to: '/painel/financeiro', icon: DollarSign, label: 'Financeiro' }),
+      ...screen('catalogo', { to: '/painel/catalogo', icon: Stethoscope, label: 'Catálogo Clínico' }),
+      ...screen('disparo', { to: '/painel/disparo', icon: Send, label: 'Disparo' }),
     ] },
     { title: 'Análise', items: [
-      ...(isAdmin ? [item('metricas', { to: '/painel/metricas', icon: BarChart2, label: 'Métricas' })] : []),
-      ...(isAdmin ? [item('nps', { to: '/painel/nps', icon: Star, label: 'NPS' })] : []),
+      ...screen('metricas', { to: '/painel/metricas', icon: BarChart2, label: 'Métricas' }),
+      ...screen('nps', { to: '/painel/nps', icon: Star, label: 'NPS' }),
     ] },
     { title: 'Conta & Ajuda', items: [
       ...(isAdmin ? [{ to: '/painel/admin', icon: Settings2, label: 'Administração' }] : []),
@@ -236,6 +240,9 @@ export default function CompanyLayout() {
   ]
   const lockedModule = (ROUTE_MODULE.find(([p]) => location.pathname === p || location.pathname.startsWith(p + '/')) || [])[1]
   const routeLocked = lockedModule && !mod(lockedModule)
+  // Sem permissão de tela (vale também pra quem digita a URL). Administração é só admin.
+  const routeForbidden = (lockedModule && !can(lockedModule))
+    || (!isAdmin && location.pathname.startsWith('/painel/admin'))
 
   if (blocked) {
     return <BlockedScreen company={session?.company} onLogout={logout} />
@@ -266,7 +273,13 @@ export default function CompanyLayout() {
         </div>
         <BillingBanner company={session?.company} />
         <main className="company-main">
-          {routeLocked ? <ModuleLockedScreen moduleKey={lockedModule} /> : <Outlet />}
+          {routeForbidden ? (
+            <div style={{ padding: '4rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <Lock size={28} style={{ marginBottom: 10 }} />
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>Você não tem acesso a esta tela</div>
+              <div style={{ fontSize: 13 }}>Peça ao administrador da clínica para liberar o acesso no seu usuário.</div>
+            </div>
+          ) : routeLocked ? <ModuleLockedScreen moduleKey={lockedModule} /> : <Outlet />}
         </main>
       </div>
       <SupportWidget

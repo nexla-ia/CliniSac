@@ -6,6 +6,7 @@ import { fetchDistinctGrupos } from '../../lib/queries'
 import ConfirmModal from '../../components/ConfirmModal'
 import LimitReachedModal from '../../components/LimitReachedModal'
 import { getEffectiveLimits, reachedLimit, upgradeMessage, formatLimit, PLAN_DEFAULTS, UNLIMITED, ADDON_USER_PRICE } from '../../lib/planLimits'
+import { SCREENS, screensMap, screensOverrides } from '../../lib/screenAccess'
 import { computeBillingStatus, fmtMoney, fmtDateBR, statusBadge, BILLING_STATUS } from '../../lib/billing'
 import { Plus, X, UserMinus, RefreshCw, UserCheck, UserX, Pencil, QrCode, Wifi, WifiOff, LogOut, Trash2, Lock, Bell, Crown, Sparkles, TrendingUp, ArrowUpRight, Calendar as CalendarIcon, Users as UsersIcon, Stethoscope, Layers, Tag as TagIcon, Check } from 'lucide-react'
 import './Company.css'
@@ -212,9 +213,19 @@ export default function CompanyAdmin() {
 
   useEffect(() => {
     if (!companyId) return
-    supabase.from('users').select('id,name,email,role,active,company_id,created_at').eq('company_id', companyId).order('name')
-      .then(({ data }) => { if (data) setUsers(data) })
+    loadUsers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId])
+
+  // Lista de usuários + as telas liberadas de cada um (users.screens vem numa
+  // consulta à parte: se a migration ainda não rodou, a lista carrega igual).
+  async function loadUsers() {
+    const { data } = await supabase.from('users').select('id,name,email,role,active,company_id,created_at').eq('company_id', companyId).order('name')
+    if (!data) return
+    const { data: scr, error: scrErr } = await supabase.from('users').select('id,screens').eq('company_id', companyId)
+    const byId = scrErr ? {} : Object.fromEntries((scr || []).map(r => [r.id, r.screens]))
+    setUsers(data.map(u => ({ ...u, screens: byId[u.id] || null })))
+  }
 
   useEffect(() => {
     if (!instance) return
@@ -336,7 +347,7 @@ export default function CompanyAdmin() {
   }
 
   function openEditUser(user) {
-    setEditUserForm({ name: user.name, email: user.email, password: '', role: user.role })
+    setEditUserForm({ name: user.name, email: user.email, password: '', role: user.role, screens: screensMap(user.role, user.screens) })
     setEditUserErr('')
     setEditUserModal(user)
   }
@@ -363,9 +374,23 @@ export default function CompanyAdmin() {
       })
       if (pwErr) { setSaving(false); setEditUserErr('Erro ao atualizar senha: ' + pwErr.message); return }
     }
+    // Telas do operador (admin vê tudo: limpa as exceções)
+    const overrides = editUserForm.role === 'admin' ? {} : screensOverrides(editUserForm.role, editUserForm.screens || {})
+    const changedScreens = JSON.stringify(overrides) !== JSON.stringify(editUserModal.screens || {})
+    if (changedScreens) {
+      const { data: scr, error: scrErr } = await supabase.rpc('set_user_screens', { p_user_id: editUserModal.id, p_screens: overrides })
+      if (scrErr || !scr?.ok) {
+        setSaving(false)
+        setEditUserErr(/set_user_screens|schema cache|PGRST202/i.test(scrErr?.message || '')
+          ? 'Para salvar as telas, rode a migration 20261125_permissoes_telas_usuario no Supabase.'
+          : 'Erro ao salvar as telas: ' + (scrErr?.message || scr?.error || ''))
+        return
+      }
+    }
     setSaving(false)
     setUsers(prev => prev.map(u => u.id === editUserModal.id
-      ? { ...u, name: editUserForm.name, email: editUserForm.email, role: editUserForm.role }
+      ? { ...u, name: editUserForm.name, email: editUserForm.email, role: editUserForm.role,
+          screens: Object.keys(overrides).length ? overrides : null }
       : u))
     setEditUserModal(null)
   }
@@ -388,8 +413,7 @@ export default function CompanyAdmin() {
     })
     setSaving(false)
     if (error) { setUserErr(error.message); return }
-    const { data } = await supabase.from('users').select('id,name,email,role,active,company_id,created_at').eq('company_id', companyId).order('name')
-    if (data) setUsers(data)
+    await loadUsers()
     setUserModal(false)
     setUserErr('')
   }
@@ -1280,7 +1304,7 @@ export default function CompanyAdmin() {
       {/* Modal editar usuário */}
       {editUserModal && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)', padding: '1.5rem' }}>
-          <div className="nx-card" style={{ width: '100%', maxWidth: 440 }}>
+          <div className="nx-card" style={{ width: '100%', maxWidth: 480, maxHeight: 'calc(100vh - 3rem)', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>Editar usuário</div>
@@ -1288,7 +1312,7 @@ export default function CompanyAdmin() {
               </div>
               <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }} onClick={() => setEditUserModal(null)}><X size={16} /></button>
             </div>
-            <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1, minHeight: 0 }}>
               <div>
                 <label style={labelStyle}>Nome</label>
                 <input className="nx-input" autoFocus value={editUserForm.name}
@@ -1318,6 +1342,35 @@ export default function CompanyAdmin() {
                   <option value="viewer">Operador — acesso ao painel de conversas</option>
                   <option value="admin">Admin — acesso completo + configurações</option>
                 </select>
+              </div>
+              {/* Telas que o operador acessa (admin vê todas) */}
+              <div>
+                <label style={labelStyle}>Telas que acessa</label>
+                {editUserForm.role === 'admin' ? (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Admin acessa todas as telas.</div>
+                ) : (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 6 }}>
+                      {SCREENS.map(s => {
+                        const on = !!editUserForm.screens?.[s.key]
+                        return (
+                          <label key={s.key} style={{
+                            display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 8, cursor: 'pointer',
+                            border: `1px solid ${on ? '#BFDBFE' : 'var(--border)'}`, background: on ? '#EFF6FF' : '#fff',
+                            fontSize: 12.5, fontWeight: on ? 600 : 500, color: on ? '#1D4ED8' : 'var(--text-secondary)', userSelect: 'none',
+                          }}>
+                            <input type="checkbox" checked={on}
+                              onChange={() => setEditUserForm(p => ({ ...p, screens: { ...(p.screens || {}), [s.key]: !on } }))} />
+                            {s.label}
+                          </label>
+                        )
+                      })}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                      Telas fora do plano da clínica continuam com cadeado. Administração é só para admin.
+                    </div>
+                  </>
+                )}
               </div>
             </div>
             <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)' }}>
