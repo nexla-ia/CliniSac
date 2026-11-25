@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom'
 // Carregado sob demanda: o bundle do emoji-picker (~300KB) só baixa ao abrir o picker.
 const EmojiPicker = lazy(() => import('emoji-picker-react'))
@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase'
 import { fetchConversaContatos } from '../../lib/queries'
 import { detectSendError, isN8nInfraNoise } from '../../lib/sendStatus'
 import { normalizePhoneDigits, isForeign11 } from '../../lib/phoneBR'
-import { MessageSquare, Bot, User, PhoneCall, CheckCircle2, X, Send, Headset, Sparkles, Inbox, UserCheck, Archive, Mic, Square, Trash2, Paperclip, FileText, Image as ImageIcon, Calendar, UserPlus, BookUser, Lock, ArrowRightLeft, ChevronLeft, Pencil, Film, Mail, MailOpen, AlertCircle, Plus, Reply, Search, MapPin, ExternalLink, LocateFixed, Kanban, Check, CheckCheck, MoreHorizontal, ChevronRight, BarChart3, Copy } from 'lucide-react'
+import { MessageSquare, Bot, User, PhoneCall, CheckCircle2, X, Send, Headset, Sparkles, Inbox, UserCheck, Archive, Mic, Square, Trash2, Paperclip, FileText, Image as ImageIcon, Calendar, UserPlus, BookUser, Lock, ArrowRightLeft, ChevronLeft, Pencil, Film, Mail, MailOpen, AlertCircle, Plus, Reply, Search, MapPin, ExternalLink, LocateFixed, Kanban, Check, CheckCheck, MoreHorizontal, ChevronRight, BarChart3, Copy, RotateCw } from 'lucide-react'
 import { useContactTags, TagPicker, TagList, TagFilter, stripPhoneSuffix, buildTagFilter } from '../../components/Tags'
 import QuickMessages from '../../components/QuickMessages'
 import ConfirmModal from '../../components/ConfirmModal'
@@ -988,16 +988,36 @@ export default function CompanyConversations() {
   }, [selected?.session_id, attendancesMap, userSector?.id, isAdmin, companyHasSectors])
 
   // Carrega atendimentos ativos (quem está em qual setor + atendente)
-  useEffect(() => {
+  const reloadAttendances = useCallback(() => {
     if (!instance) return
     fetchAllByInstance('attendances', '*', 'numero', instance)
       .then((data) => {
         const map = {}
-        data.forEach(r => { map[canonSession(r.numero)] = r })
+        ;(data || []).forEach(r => { map[canonSession(r.numero)] = r })
         setAttendancesMap(map)
         setAttendancesLoaded(true)
       })
+      .catch(() => {})
   }, [instance])
+  useEffect(() => { reloadAttendances() }, [reloadAttendances])
+
+  // Rede de segurança do tempo real: se o canal ao vivo cair (rede/antivírus que
+  // bloqueia websocket, aba suspensa, token renovado), uma conversa transferida
+  // pra pessoa não aparecia até recarregar a página. Agora recarrega os
+  // atendimentos ao voltar pra aba e, com o canal fora do ar, a cada 20s.
+  const attRealtimeOkRef = useRef(false)
+  useEffect(() => {
+    if (!instance) return
+    const onVisible = () => { if (document.visibilityState === 'visible') reloadAttendances() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    const id = setInterval(() => { if (!attRealtimeOkRef.current) reloadAttendances() }, 20000)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [instance, reloadAttendances])
 
   // Carrega outros usuários da empresa pra opção de transferir conversa
   useEffect(() => {
@@ -1030,9 +1050,14 @@ export default function CompanyConversations() {
             setAttendancesMap(prev => ({ ...prev, [canonSession(p.new.numero)]: p.new }))
           }
         })
-      .subscribe()
-    return () => supabase.removeChannel(ch)
-  }, [instance])
+      .subscribe((status) => {
+        const ok = status === 'SUBSCRIBED'
+        // voltou depois de cair: busca o que mudou enquanto estava fora
+        if (ok && attRealtimeOkRef.current === false) reloadAttendances()
+        attRealtimeOkRef.current = ok
+      })
+    return () => { attRealtimeOkRef.current = false; supabase.removeChannel(ch) }
+  }, [instance, reloadAttendances])
 
   // Carrega todos os contatos únicos da mensagens_geral (apenas WhatsApp)
   useEffect(() => {
@@ -1893,10 +1918,11 @@ export default function CompanyConversations() {
       p_hora: new Date().toISOString(),
     })
 
+    const tKey = canonSession(transferModal.session_id)
     setAttendancesMap(prev => ({
       ...prev,
-      [transferModal.session_id]: {
-        ...(prev[transferModal.session_id] || {}),
+      [tKey]: {
+        ...(prev[tKey] || prev[transferModal.session_id] || {}),
         ...updated,
       },
     }))
@@ -2336,8 +2362,11 @@ export default function CompanyConversations() {
         }
         return prev
       })
-      const markFalhou = () => markMsg({ falhou: true })
-      const markIncerto = () => markMsg({ incerto: true })
+      // retryFn: o botão "Reenviar" da própria mensagem roda a entrega de novo
+      // (mesma linha no banco — não duplica no chat). Vale enquanto a tela está aberta.
+      const markFalhou = () => markMsg({ falhou: true, incerto: false, retrying: false, retryFn: deliver })
+      const markIncerto = () => markMsg({ incerto: true, retrying: false, retryFn: deliver })
+      const markOk = () => markMsg({ falhou: false, incerto: false, retrying: false, retryFn: null })
 
       // Sucesso: n8n devolve instancia / mensagem / id_mensagem (uma por linha).
       const applyOk = async (text) => {
@@ -2370,7 +2399,7 @@ export default function CompanyConversations() {
       // alternado. Aviso em 2 níveis: vermelho quando REALMENTE não foi (sem
       // conexão / Evolution recusou); laranja quando só faltou a confirmação
       // (timeout / resposta perdida — provavelmente foi, não dá pra ter certeza).
-      ;(async () => {
+      async function deliver() {
         try {
           // Envia pro JID REAL que o cliente usa — o número da última mensagem
           // RECEBIDA dele. Isso acerta o nono dígito de cara (ex.: contato que
@@ -2397,9 +2426,11 @@ export default function CompanyConversations() {
             })
             setTimeout(() => setToast(null), 8000)
             markFalhou()
-            return
+            return false
           }
+          markOk()
           await applyOk(res.text)
+          return true
         } catch (e) {
           console.warn('webhook envio:', e)
           if (isConnFailure(e)) {
@@ -2419,13 +2450,57 @@ export default function CompanyConversations() {
             setTimeout(() => setToast(null), 8000)
             markIncerto()
           }
+          return false
         }
-      })()
+      }
+      deliver()
     } finally {
       setSending(false)
       // Mantém o foco na caixa de texto pra digitar a próxima sem clicar de novo
       // (cobre o envio pelo botão, que joga o foco pro botão). Igual WhatsApp.
       setTimeout(() => composerRef.current?.focus(), 0)
+    }
+  }
+
+  // "Reenviar" numa mensagem que não chegou no WhatsApp. Enviada nesta sessão →
+  // repete a mesma entrega (inclui mídia). Vinda do banco (recarregou a página ou a
+  // Evolution avisou o erro depois) → só dá pra reenviar texto.
+  const canResend = (msg) => !!msg.retryFn || (!msg.base64 && !msg.temMidia && !!(msg.content || '').trim())
+  async function resendMessage(msg) {
+    if (!selected || msg.retrying || !canResend(msg)) return
+    const setFlag = (patch) => setMessages(prev => prev.map(m => m === msg || (msg.id && m.id === msg.id) ? { ...m, ...patch } : m))
+    setFlag({ retrying: true })
+    if (msg.retryFn) { await msg.retryFn(); setFlag({ retrying: false }); return }
+    try {
+      const sid = String(msg.numero || selected.session_id)
+      const jid = sid.includes('@') ? sid : `${sid}@s.whatsapp.net`
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), 45000)
+      const r = await fetch('https://n8n.nexladesenvolvimento.com.br/webhook/envioNexla', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal,
+        body: JSON.stringify({
+          message: msg.content, mensagem: msg.content,
+          session_id: jid, phone: jid.replace(/@.*/, ''),
+          instancia: instance, api_instancia: apiInstancia,
+          ai_enabled: session?.company?.ai_enabled !== false,
+          company: session?.company?.name,
+          sender_name: session?.user?.name, sender_email: session?.user?.email,
+        }),
+      }).finally(() => clearTimeout(timer))
+      const text = await r.text().catch(() => '')
+      const reason = isN8nInfraNoise(text) ? null : (!r.ok ? 'HTTP ' + r.status : detectSendError(text))
+      if (reason) throw new Error(reason)
+      const lines = text.trim().split('\n')
+      const msgId = lines.length >= 3 ? lines[lines.length - 1].trim() : ''
+      const patch = { send_error_at: null, ...(msgId && !/\s/.test(msgId) ? { id_mensagem: msgId } : {}) }
+      if (msg.id) await supabase.from('mensagens_geral').update(patch).eq('id', msg.id)
+      setFlag({ ...patch, falhou: false, incerto: false, retrying: false })
+      setToast({ message: 'Mensagem reenviada.', color: '#16A34A' })
+      setTimeout(() => setToast(null), 3000)
+    } catch (e) {
+      setFlag({ retrying: false })
+      setToast({ message: `⚠️ Não deu pra reenviar: ${e?.name === 'AbortError' ? 'o WhatsApp não respondeu a tempo' : (e?.message || 'falha de conexão')}`, color: '#DC2626' })
+      setTimeout(() => setToast(null), 8000)
     }
   }
 
@@ -3847,12 +3922,25 @@ export default function CompanyConversations() {
                               <div style={{ fontSize: 10.5, fontWeight: 700, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, color: isAtendente ? '#FCA5A5' : '#DC2626' }}
                                 title={msg.send_error_at ? `A Evolution reportou erro de entrega às ${formatMsgTime(msg.send_error_at, companyTz)}` : undefined}>
                                 <AlertCircle size={10} /> não entregue no WhatsApp
+                                {canResend(msg) && (
+                                  <button onClick={() => resendMessage(msg)} disabled={msg.retrying}
+                                    style={{ marginLeft: 6, display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, fontWeight: 700, padding: '1px 8px', borderRadius: 20, border: 'none', background: '#fff', color: '#B91C1C', cursor: msg.retrying ? 'default' : 'pointer', opacity: msg.retrying ? 0.7 : 1 }}>
+                                    {msg.retrying ? 'Reenviando…' : <><RotateCw size={10} /> Reenviar</>}
+                                  </button>
+                                )}
                               </div>
                             )}
                             {msg.incerto && !msg.falhou && !msg.send_error_at && (
                               <div style={{ fontSize: 10.5, fontWeight: 700, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, color: isAtendente ? '#FDE68A' : '#D97706' }}
                                 title="A mensagem foi salva e provavelmente enviada, mas o servidor não confirmou. Confira no WhatsApp antes de reenviar.">
                                 <AlertCircle size={10} /> entrega não confirmada
+                                {canResend(msg) && (
+                                  <button onClick={() => resendMessage(msg)} disabled={msg.retrying}
+                                    title="Confira no WhatsApp antes: se a mensagem chegou, reenviar duplica."
+                                    style={{ marginLeft: 6, display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, fontWeight: 700, padding: '1px 8px', borderRadius: 20, border: 'none', background: '#fff', color: '#B45309', cursor: msg.retrying ? 'default' : 'pointer', opacity: msg.retrying ? 0.7 : 1 }}>
+                                    {msg.retrying ? 'Reenviando…' : <><RotateCw size={10} /> Reenviar</>}
+                                  </button>
+                                )}
                               </div>
                             )}
                           </div>
