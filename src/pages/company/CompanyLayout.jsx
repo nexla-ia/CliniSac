@@ -18,7 +18,7 @@ import { canSeeScreen } from '../../lib/screenAccess'
 import './Company.css'
 
 export default function CompanyLayout() {
-  const { session, logout } = useAuth()
+  const { session, logout, clockSkewMin } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const blocked = shouldBlockAccess(session?.company)
@@ -272,6 +272,13 @@ export default function CompanyLayout() {
           </span>
         </div>
         <BillingBanner company={session?.company} />
+        {clockSkewMin !== 0 && (
+          <div style={{ background: '#FEF3C7', borderBottom: '1px solid #FDE68A', color: '#92400E', fontSize: 12.5, fontWeight: 600, padding: '8px 16px' }}>
+            ⚠️ O relógio deste computador está {Math.abs(clockSkewMin) >= 60
+              ? `${Math.round(Math.abs(clockSkewMin) / 60)}h`
+              : `${Math.abs(clockSkewMin)} min`} {clockSkewMin > 0 ? 'adiantado' : 'atrasado'}. Isso pode fazer a plataforma parar de carregar as conversas. Acerte a data e a hora do computador (ative "Definir horário automaticamente").
+          </div>
+        )}
         <main className="company-main">
           {routeForbidden ? (
             <div style={{ padding: '4rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>

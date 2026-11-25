@@ -90,6 +90,7 @@ export function AuthProvider({ children }) {
   const [db, setDb] = useState({ companies: [] })
   const [dbLoading, setDbLoading] = useState(false)
   const [dbError, setDbError] = useState(null)
+  const [clockSkewMin, setClockSkewMin] = useState(0) // relógio local x servidor (min)
 
   useEffect(() => {
     if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session))
@@ -103,17 +104,39 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let alive = true
 
+    // Relógio do computador errado = o supabase-js renova o crachá na hora
+    // errada e a sessão "morre" (tela vazia). O crachá traz a hora do servidor
+    // (iat): comparando com o relógio local dá pra avisar a pessoa.
+    const checkClock = (token) => {
+      try {
+        const iat = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).iat
+        const skewMin = Math.round((Date.now() / 1000 - iat) / 60)
+        setClockSkewMin(Math.abs(skewMin) >= 5 ? skewMin : 0)
+      } catch {}
+    }
+
     supabase.auth.getSession().then(({ data }) => {
       if (alive && !data?.session) setSession(null)
     })
 
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
       if (event === 'SIGNED_OUT') setSession(null)
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && sess?.access_token) checkClock(sess.access_token)
     })
+
+    // A sessão venceu e nem a renovação deu certo (lib/supabase): desloga com
+    // explicação, em vez de deixar a tela vazia com cara de "sumiu tudo".
+    const onExpired = () => {
+      try { localStorage.setItem('nx_logout_reason', 'Sua sessão expirou. Entre de novo para continuar.') } catch {}
+      supabase.auth.signOut().catch(() => {})
+      setSession(null)
+    }
+    window.addEventListener('nx-auth-expired', onExpired)
 
     return () => {
       alive = false
       try { sub?.subscription?.unsubscribe() } catch {}
+      window.removeEventListener('nx-auth-expired', onExpired)
     }
   }, [])
 
@@ -555,7 +578,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ session, db, dbLoading, dbError, login, masterEnter, logout, loadDB, addCompany, addUser, updateUser, changeOwnPassword, toggleUserActive, toggleCompanyActive }}>
+    <AuthContext.Provider value={{ session, clockSkewMin, db, dbLoading, dbError, login, masterEnter, logout, loadDB, addCompany, addUser, updateUser, changeOwnPassword, toggleUserActive, toggleCompanyActive }}>
       {children}
     </AuthContext.Provider>
   )
